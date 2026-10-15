@@ -1,0 +1,9 @@
+# Sicherheitsnetz, falls das gesamte Projekt versehentlich im Webroot liegt:
+# interne Ordner sind von aussen nie erreichbar (zusätzlich sperrt jeder Ordner selbst per .htaccess).
+# Empfohlen bleibt: nur public/ als Webroot verwenden (siehe README).
+Options -Indexes
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteRule ^(app|config|database|storage|bin|resources|tests|docs)(/|$) - [F,L]
+  RewriteRule ^(README\.md|\.gitignore)$ - [F,L]
+</IfModule>

@@ -1,0 +1,18 @@
+# Niemals ins Repository: Zugangsdaten und Laufzeitdaten
+/config/config.php
+/storage/installed.lock
+/storage/update.lock
+/storage/maintenance.flag
+/storage/update-*/
+/storage/backups/*
+/storage/banners/*
+/storage/sessions/*
+/storage/logs/*
+!/storage/banners/.htaccess
+!/storage/banners/.gitkeep
+!/storage/sessions/.htaccess
+!/storage/sessions/.gitkeep
+!/storage/logs/.htaccess
+!/storage/logs/.gitkeep
+/storage/backups/*
+!/storage/backups/.gitkeep
