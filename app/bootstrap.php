@@ -9,7 +9,7 @@ if (PHP_VERSION_ID < 80200) {
 }
 
 define('APP_ROOT', dirname(__DIR__));
-define('APP_VERSION', '1.5.0');
+define('APP_VERSION', '1.6.0');
 
 $configFile = APP_ROOT . '/config/config.php';
 if (!is_file($configFile)) {
@@ -42,6 +42,7 @@ require __DIR__ . '/lib/Booking.php';
 require __DIR__ . '/lib/Billing.php';
 require __DIR__ . '/lib/Installer.php';
 require __DIR__ . '/lib/Updater.php';
+require __DIR__ . '/lib/Changelog.php';
 require __DIR__ . '/lib/Legal.php';
 require __DIR__ . '/lib/Privacy.php';
 

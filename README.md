@@ -181,6 +181,8 @@ Die Anwendung kann sich aus **GitHub-Releases** selbst aktualisieren (öffentlic
 
 **Ablauf beim Kunden:** Täglich prüft die Anwendung (bei Admin-Aufrufen und per `bin/cron.php`) auf ein neueres Release und zeigt Administratoren einen Hinweis – installiert wird nur per Klick auf *Jetzt aktualisieren* (oder `php bin/update.php install`). Dabei: ZIP laden (Weiterleitungen nur zu GitHub-Hosts, Token nur an die API) → sicher entpacken (keine `..`-Pfade, keine Symlinks, Grössenlimits) → prüfen (Struktur, Version = Tag, PHP-Syntax aller Dateien) → Sicherung der Programmdateien nach `storage/backups/` (die letzten 3) → Wartungsmodus (503) → Dateien austauschen → bei Fehler automatische Wiederherstellung. `config/config.php`, `storage/` und Uploads werden nie angefasst; veraltete Dateien in `app/`, `bin/`, `database/`, `docs/`, `resources/`, `tests/` werden entfernt, in `public/` nur überschrieben.
 
+**Änderungsprotokoll:** Die Datei `CHANGELOG.md` (Format `## [X.Y.Z] - JJJJ-MM-TT`, Abschnitte `### Neu` / `### Geändert` / `### Behoben` / `### Sicherheit`, Stichpunkte mit `- `) wird mit jedem Update mitgeliefert. Nach einem Update sieht jeder Administrator beim nächsten Aufruf einmalig ein Fenster mit allen Einträgen seit der zuletzt gesehenen Version (gespeichert pro Administrator in `settings`, Schlüssel `changelog_seen_u<ID>`). Die gesamte Historie steht unter *Administration → Änderungsprotokoll* (Link über die Versionsnummer in der Fusszeile), auch im Lesemodus ohne Lizenz. Beim Veröffentlichen: neuen Abschnitt oben in `CHANGELOG.md` ergänzen und denselben Text als Release-Hinweise verwenden.
+
 **Rollback:** unter *Updates → Sicherungen* oder `php bin/update.php rollback`. Notfall ohne funktionierende Anwendung: die Sicherungs-ZIP aus `storage/backups/` über das Projektverzeichnis entpacken. Die **Datenbank wird nicht gesichert** und Migrationen werden nicht zurückgenommen – vor jedem Update ein Datenbank-Backup erstellen.
 
 **Hinweise:** Voraussetzungen sind PHP-Erweiterungen `zip` und `curl` sowie Schreibrechte auf die Programmverzeichnisse (die Seite zeigt den Status). Liegt das Webroot ausserhalb von `public/`, `integrations.update.webroot` setzen. Vertrauensmodell: HTTPS zu GitHub und Zugriff auf das Repository – wer Releases veröffentlichen kann, kann Code in alle Installationen einspielen; GitHub-Konto per 2FA und Tag-Schutz absichern. Eine zusätzliche Signaturprüfung ist nicht eingebaut.
@@ -234,6 +236,7 @@ app/lib/           helpers (DB, Sitzung, CSRF, Format), Booking (Geschäftslogik
 app/views/         PHP-Templates
 database/schema.sql
 docs/DSGVO.md      Datenschutz: Massnahmen, Löschkonzept, Verarbeitungsverzeichnis, Checkliste
+CHANGELOG.md       Änderungsprotokoll (wird nach Updates angezeigt)
 bin/               install.php (CLI), cron.php, update.php (Updates/Rollback per CLI)
 resources/         Tailwind-Quellen (nur für Entwicklung)
 storage/           Uploads, Logs, Sitzungen (nicht öffentlich)

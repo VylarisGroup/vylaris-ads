@@ -7,6 +7,17 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
+  // Änderungsprotokoll nach einem Update: einmalig als Dialog; jedes Schliessen gilt als „gesehen“
+  document.querySelectorAll('dialog[data-changelog]').forEach((dlg) => {
+    if (typeof dlg.showModal !== 'function') return;
+    const form = dlg.querySelector('form');
+    let sent = false;
+    const done = () => { if (!sent) { sent = true; form.submit(); } };
+    dlg.addEventListener('close', done);
+    dlg.querySelector('[data-changelog-close]').addEventListener('click', (e) => { e.preventDefault(); dlg.close(); });
+    dlg.showModal();
+  });
+
   document.querySelectorAll('[data-print]').forEach((b) => b.addEventListener('click', () => window.print()));
   document.querySelectorAll('[data-back]').forEach((a) => a.addEventListener('click', (e) => {
     if (history.length > 1) { e.preventDefault(); history.back(); }

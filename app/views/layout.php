@@ -91,6 +91,23 @@ $isActive = fn (string $p) => $current === $p || ($p !== 'home' && str_starts_wi
     <div class="mb-4 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900" role="alert"><i class="bx bx-error text-lg"></i>
       <span>Die rechtlichen Angaben (Impressum, Datenschutz) sind unvollständig. <a class="underline" href="<?= url('admin.settings') ?>#rechtliches">Jetzt unter Einstellungen ergänzen</a>.</span></div>
   <?php endif; ?>
+  <?php if ($me && $me['role'] === 'admin' && $current !== 'admin.changelog' && ($cl = Changelog::pending((int) $me['id']))): ?>
+    <dialog data-changelog class="w-[calc(100%-2rem)] max-w-lg rounded-lg border border-slate-200 bg-white p-0 shadow-xl backdrop:bg-slate-900/50" aria-labelledby="cl-title">
+      <form method="post" action="<?= url('admin.changelog') ?>" class="flex max-h-[85vh] flex-col"><?= csrf_field() ?>
+        <div class="flex items-center gap-2 border-b border-slate-200 px-5 py-4">
+          <i class="bx bx-gift text-2xl text-brand-600"></i>
+          <h2 id="cl-title" class="text-lg font-semibold text-slate-900">Neu in Version <?= e(APP_VERSION) ?></h2>
+        </div>
+        <div class="divide-y divide-slate-100 overflow-y-auto px-5 py-4"><?= Changelog::html($cl, Changelog::seenVersion((int) $me['id'])) ?></div>
+        <div class="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 px-5 py-3">
+          <a class="text-sm text-slate-600 underline" href="<?= url('admin.changelog') ?>">Gesamtes Änderungsprotokoll</a>
+          <button class="btn-primary" data-changelog-close><i class="bx bx-check"></i> Verstanden</button>
+        </div>
+      </form>
+    </dialog>
+    <noscript><div class="mb-4 flex items-start gap-2 rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900" role="status"><i class="bx bx-gift text-lg"></i>
+      <span>Die Anwendung wurde auf Version <?= e(APP_VERSION) ?> aktualisiert. <a class="underline" href="<?= url('admin.changelog') ?>">Änderungen ansehen</a>.</span></div></noscript>
+  <?php endif; ?>
   <?php foreach (take_flashes() as $f): ?>
     <?php $fc = ['success' => 'border-emerald-200 bg-emerald-50 text-emerald-800', 'error' => 'border-rose-200 bg-rose-50 text-rose-800', 'info' => 'border-sky-200 bg-sky-50 text-sky-800'][$f['type']] ?? 'border-slate-200 bg-white';
           $fi = ['success' => 'bx-check-circle', 'error' => 'bx-error-circle', 'info' => 'bx-info-circle'][$f['type']] ?? 'bx-info-circle'; ?>
@@ -107,7 +124,7 @@ $isActive = fn (string $p) => $current === $p || ($p !== 'home' && str_starts_wi
       <a class="hover:text-slate-800 hover:underline" href="<?= url('imprint') ?>">Impressum</a>
       <a class="hover:text-slate-800 hover:underline" href="<?= url('terms') ?>">Nutzungsbedingungen</a>
     </nav>
-    <span>Ein Projekt der VylarisGroup · v<?= APP_VERSION ?></span>
+    <span>Ein Projekt der VylarisGroup · <?php if ($me && $me['role'] === 'admin'): ?><a class="hover:underline" href="<?= url('admin.changelog') ?>" title="Änderungsprotokoll">v<?= APP_VERSION ?></a><?php else: ?>v<?= APP_VERSION ?><?php endif; ?></span>
   </div>
 </footer>
 </body>

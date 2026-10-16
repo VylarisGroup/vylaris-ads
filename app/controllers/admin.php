@@ -378,3 +378,15 @@ function admin_update(): void
     unset($_SESSION['update_log']);
     view('admin/update', ['title' => 'Updates', 'log' => $log]);
 }
+
+function admin_changelog(): void
+{
+    $me = current_user();
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        Changelog::markSeen((int) $me['id']);
+        back('admin.changelog');
+    }
+    $seen = Changelog::seenVersion((int) $me['id']);
+    Changelog::markSeen((int) $me['id']); // wer die Seite sieht, hat das Protokoll gelesen
+    view('admin/changelog', ['title' => 'Änderungsprotokoll', 'entries' => Changelog::entries(), 'seen' => $seen]);
+}

@@ -8,7 +8,7 @@ $backups = Updater::backups();
 $fmt = fn ($t) => $t ? date('d.m.Y H:i', (int) $t) : '–';
 ?>
 <h1 class="text-2xl font-semibold text-slate-900">Updates</h1>
-<p class="mt-1 text-sm text-slate-500">Aktualisierung aus GitHub-Releases. Ein Release gilt als Update, wenn sein Tag <code>vX.Y.Z</code> neuer als die installierte Version ist.</p>
+<p class="mt-1 text-sm text-slate-500">Aktualisierung aus GitHub-Releases. Ein Release gilt als Update, wenn sein Tag <code>vX.Y.Z</code> neuer als die installierte Version ist. <a class="underline" href="<?= url('admin.changelog') ?>">Änderungsprotokoll</a></p>
 
 <div class="mt-6 grid gap-6 lg:grid-cols-2">
   <div class="card p-6">

@@ -861,6 +861,44 @@ $admin->get('admin.licence')->post('admin.licence', ['action' => 'save', 'licenc
 check(licence()->endpoint() === 'http://127.0.0.1:8081' && !str_contains((string) val("SELECT GROUP_CONCAT(name) FROM settings"), 'licence_endpoint'), 'Per POST mitgeschickte Lizenzserver-Angaben werden ignoriert');
 check(PHP_VERSION_ID > 0 && str_contains((string) file_get_contents(APP_ROOT . '/app/lib/Licence.php'), 'MCowBQYDK2VwAyEAhV7L176abx5a05XciRbOOeFj6wkCnNiDrwEXw7KceiU='), 'Öffentlicher Schlüssel ist im Programm hinterlegt');
 
+echo "\n== Änderungsprotokoll ==\n";
+$adminId = (int) val("SELECT id FROM users WHERE email = ?", [$adminEmail]);
+$ck = 'changelog_seen_u' . $adminId;
+$ver = APP_VERSION;
+$parsed = Changelog::parse("# Titel\n\n## [2.0.0] - 2026-01-02\n### Neu\n- **Fett** und `code` <script>alert(1)</script>\n  Fortsetzung\n### Behoben\n- Fix\n\n## [1.10.0]\n- ohne Abschnitt\n\n## [1.9.0] - 2025-12-31\n- älter\n");
+check(count($parsed) === 3 && $parsed[0]['version'] === '2.0.0' && $parsed[1]['version'] === '1.10.0' && $parsed[2]['version'] === '1.9.0', 'Parser liest Versionen und sortiert numerisch (1.10.0 vor 1.9.0)');
+check($parsed[0]['date'] === '2026-01-02' && $parsed[1]['date'] === '' && str_contains($parsed[0]['sections']['Neu'][0], 'Fortsetzung') && ($parsed[1]['sections']['Änderungen'][0] ?? '') === 'ohne Abschnitt', 'Parser: Datum optional, Fortsetzungszeilen, Standardabschnitt');
+$html = Changelog::html($parsed);
+check(!str_contains($html, '<script') && str_contains($html, '<strong>Fett</strong>') && str_contains($html, '<code>code</code>') && str_contains($html, '&lt;script&gt;'), 'Darstellung maskiert HTML, erlaubt nur fett und code');
+check(count(Changelog::entries()) >= 9 && Changelog::entries()[0]['version'] === $ver, 'CHANGELOG.md enthält die installierte Version als neuesten Eintrag');
+check(str_contains(Changelog::markdownFor($ver), '### Neu'), 'Release-Hinweise lassen sich aus CHANGELOG.md erzeugen');
+
+q("DELETE FROM settings WHERE name = ?", [$ck]);
+$admin->get('dashboard'); check($admin->code === 200 && $admin->has('data-changelog') && $admin->has('Neu in Version ' . $ver), 'Erster Aufruf ohne Stand: Änderungsfenster mit der aktuellen Version');
+check(!$admin->has('Version 1.4.0') , 'Ohne gespeicherten Stand wird nicht die ganze Historie gezeigt');
+$adv->get('dashboard'); check(!$adv->has('data-changelog'), 'Nicht-Administratoren sehen das Änderungsfenster nie');
+$adv->get('admin.changelog'); check($adv->code === 403, 'Änderungsprotokoll-Seite nur für Administratoren');
+$anon->post('admin.changelog', []); check(in_array($anon->code, [302, 403, 419], true) && !$anon->has('data-changelog'), 'Anonymes POST auf das Änderungsprotokoll wird abgewiesen');
+$admin->get('dashboard'); check($admin->has('data-changelog'), 'Fenster erscheint erneut, solange es nicht bestätigt wurde');
+$admin->post('admin.changelog', []); $admin->get('dashboard');
+check(val("SELECT value FROM settings WHERE name = ?", [$ck]) === $ver && !$admin->has('data-changelog'), 'Bestätigen merkt sich die Version, danach kein Fenster mehr');
+
+set_setting($ck, '1.4.0');
+$admin->get('dashboard');
+check($admin->has('data-changelog') && $admin->has('Version 1.5.0') && $admin->has('Version ' . $ver) && !$admin->has('Version 1.4.0') && !$admin->has('Version 1.3.1'), 'Nach einem Update: nur Einträge seit der zuletzt gesehenen Version');
+$admin->get('admin.changelog'); check($admin->code === 200 && !$admin->has('data-changelog') && $admin->has('Version 1.0.0') && $admin->has('Version 1.4.0'), 'Gesamtes Änderungsprotokoll mit Historie');
+check(val("SELECT value FROM settings WHERE name = ?", [$ck]) === $ver, 'Das Öffnen der Seite gilt als gelesen');
+$admin->get('dashboard'); check(!$admin->has('data-changelog'), 'Nach dem Lesen kein Fenster mehr');
+
+set_setting($ck, '99.0.0');
+$admin->get('dashboard'); check(!$admin->has('data-changelog'), 'Neuerer gespeicherter Stand (z. B. nach Rollback) zeigt nichts an');
+q("DELETE FROM settings WHERE name = ?", [$ck]);
+$other = (int) val("SELECT COUNT(*) FROM settings WHERE name LIKE 'changelog_seen_u%' AND name <> ?", [$ck]);
+check($other === 0, 'Gesehen-Stand wird nur für den eigenen Administrator geführt');
+$routes = require APP_ROOT . '/app/routes.php';
+check(isset($routes['admin.changelog']) && !isset($routes['admin.changelog'][4]) && $routes['admin.changelog'][3] === 'admin', 'Änderungsprotokoll ist lizenzunabhängig (auch im Lesemodus) und nur für Administratoren');
+
+
 echo "\nErgebnis: $passed bestanden, $failed fehlgeschlagen\n";
 array_map('unlink', glob("$tmp/*") ?: []);
 @rmdir($tmp);

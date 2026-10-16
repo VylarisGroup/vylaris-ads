@@ -64,6 +64,7 @@ return [
     'admin.settings'         => ['admin',      'admin_settings',        ['GET', 'POST'], 'admin'],
     'admin.licence'          => ['admin',      'admin_licence',         ['GET', 'POST'], 'admin'],
     'admin.update'           => ['admin',      'admin_update',          ['GET', 'POST'], 'admin'],
+    'admin.changelog'        => ['admin',      'admin_changelog',       ['GET', 'POST'], 'admin'],
     'admin.audit'            => ['admin',      'admin_audit',           ['GET'],         'admin', 'audit.view'],
 
     // Einbindung beim Betreiber (öffentlich, ohne Sitzung/Cookies)
