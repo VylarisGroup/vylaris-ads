@@ -4,6 +4,19 @@ Alle nennenswerten Änderungen an VylarisAdvertise. Neueste Version zuerst. Admi
 
 Format pro Version: `## [X.Y.Z] - JJJJ-MM-TT`, darunter Abschnitte (`### Neu`, `### Geändert`, `### Behoben`, `### Sicherheit`) mit Stichpunkten.
 
+## [1.7.0] - 2026-10-16
+### Neu
+- **Seitenleiste mit ausklappbaren Menüs:** Die Navigation steht jetzt links und ist nach Aufgaben gruppiert (Werbung, Webseiten bzw. Prüfung, Finanzen, Verwaltung, System). Die Gruppe der aktuellen Seite ist offen, der Zustand der übrigen wird im Browser gemerkt. Auf dem Handy öffnet sich dasselbe Menü über die Menü-Schaltfläche.
+- **Assistenten für alle Anlege-Vorgänge:** Schritt für Schritt mit Fortschrittsanzeige, Prüfung pro Schritt und Zusammenfassung vor dem Absenden.
+  - **Webseite einrichten:** Webseite und erster Werbeplatz in einem Durchgang (oder nur ein weiterer Werbeplatz für eine bestehende Webseite). Es wird beides oder nichts gespeichert.
+  - **Kampagne erstellen:** mit Banner-Vorschau, Grössenanzeige und Hinweis, zu welchem Format das Banner passt.
+  - **Werbeplatz buchen:** Platz, passende Kampagne, Zeitraum mit Live-Preis, Zusammenfassung.
+  - **Einrichtungsassistent** für Administratoren: Plattform, Provision, Zahlungsinformationen und Betreiberangaben.
+  - **Registrierung:** optional Schritt für Schritt (Link „Schritt für Schritt registrieren“).
+- Die klassischen Formulare bleiben unverändert erreichbar; jeder Assistent verlinkt darauf. Beide Wege verwenden dieselbe Prüfung und Speicherlogik auf dem Server.
+### Geändert
+- Neue Menüeinträge für Administratoren: Protokoll, Updates und Änderungsprotokoll sind jetzt direkt in der Seitenleiste erreichbar.
+
 ## [1.6.0] - 2026-10-16
 ### Neu
 - **Änderungsprotokoll:** Nach einem Update zeigt die Administration beim ersten Aufruf ein Fenster mit allen Neuerungen seit der zuletzt gesehenen Version. Jeder Administrator wird einzeln geführt.

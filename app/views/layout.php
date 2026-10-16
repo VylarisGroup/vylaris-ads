@@ -3,31 +3,6 @@
 $me = current_user();
 $platform = setting('platform_name', 'VylarisAdvertise');
 $current = $_GET['p'] ?? 'home';
-$nav = [['home', 'Marktplatz', 'bx-store-alt']];
-if ($me) {
-    $nav[] = ['dashboard', 'Dashboard', 'bx-grid-alt'];
-    if ($me['role'] !== 'admin') {
-        if (can_advertise($me)) {
-            $nav[] = ['campaigns', 'Kampagnen', 'bx-image-alt'];
-        }
-        if (can_publish($me)) {
-            $nav[] = ['sites', 'Webseiten', 'bx-globe'];
-        }
-        $nav[] = ['bookings', 'Buchungen', 'bx-calendar-check'];
-        if (can_publish($me)) {
-            $nav[] = ['earnings', 'Einnahmen', 'bx-wallet'];
-        }
-    } else {
-        $nav[] = ['admin.reviews', 'Freigaben', 'bx-check-shield'];
-        $nav[] = ['admin.bookings', 'Buchungen', 'bx-calendar-check'];
-        $nav[] = ['admin.payouts', 'Auszahlungen', 'bx-transfer'];
-        $nav[] = ['admin.finance', 'Finanzen', 'bx-line-chart'];
-        $nav[] = ['admin.users', 'Benutzer', 'bx-group'];
-        $nav[] = ['admin.licence', 'Lizenz', 'bx-key'];
-        $nav[] = ['admin.settings', 'Einstellungen', 'bx-cog'];
-    }
-}
-$isActive = fn (string $p) => $current === $p || ($p !== 'home' && str_starts_with((string) $current, rtrim($p, 's')));
 ?><!doctype html>
 <html lang="de">
 <head>
@@ -39,46 +14,55 @@ $isActive = fn (string $p) => $current === $p || ($p !== 'home' && str_starts_wi
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
 <script src="assets/app.js?v=<?= APP_VERSION ?>" defer></script>
 </head>
-<body class="min-h-screen bg-slate-50 text-slate-800 antialiased flex flex-col">
-<header class="bg-white border-b border-slate-200 sticky top-0 z-30">
-  <div class="mx-auto max-w-7xl px-4 sm:px-6 h-16 flex items-center gap-6">
-    <a href="<?= url('home') ?>" class="flex items-center gap-2 font-semibold text-slate-900 shrink-0">
-      <span class="grid place-items-center h-9 w-9 rounded-lg bg-brand-600 text-white"><i class="bx bx-broadcast text-xl"></i></span>
-      <span class="hidden sm:inline xl:hidden 2xl:inline"><?= e($platform) ?></span>
+<body class="min-h-screen bg-slate-50 text-slate-800 antialiased">
+<div class="min-h-screen lg:flex">
+<?php if ($me): ?>
+<aside class="hidden shrink-0 flex-col border-r border-slate-200 bg-white lg:sticky lg:top-0 lg:flex lg:h-screen lg:w-64 xl:w-72" aria-label="Hauptnavigation">
+  <a href="<?= url('home') ?>" class="flex h-16 shrink-0 items-center gap-2 border-b border-slate-200 px-5 font-semibold text-slate-900">
+    <span class="grid h-9 w-9 place-items-center rounded-lg bg-brand-600 text-white"><i class="bx bx-broadcast text-xl"></i></span>
+    <span class="truncate"><?= e($platform) ?></span>
+  </a>
+  <nav class="flex-1 space-y-1 overflow-y-auto p-3" data-nav><?= Nav::render($me, (string) $current) ?></nav>
+  <div class="shrink-0 border-t border-slate-200 p-3">
+    <a href="<?= url('account') ?>" class="flex items-center gap-3 rounded-md px-3 py-2 hover:bg-slate-100 <?= $current === 'account' ? 'bg-brand-50' : '' ?>">
+      <i class="bx bx-user-circle text-2xl text-slate-500"></i>
+      <span class="min-w-0 flex-1 leading-tight"><span class="block truncate text-sm font-medium text-slate-800"><?= e($me['name']) ?></span><span class="block text-xs text-slate-500"><?= e(ROLE_LABELS[$me['role']]) ?> · Mein Konto</span></span>
     </a>
-    <nav class="hidden xl:flex items-center gap-1 text-sm">
-      <?php foreach ($nav as [$p, $label, $icon]): ?>
-        <a href="<?= url($p) ?>" class="flex items-center gap-1.5 rounded-md px-2 2xl:px-3 py-2 <?= $isActive($p) ? 'bg-brand-50 text-brand-700 font-medium' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100' ?>">
-          <i class="bx <?= $icon ?> text-lg"></i><?= e($label) ?></a>
-      <?php endforeach; ?>
-    </nav>
+    <form method="post" action="<?= url('logout') ?>" class="mt-1"><?= csrf_field() ?>
+      <button class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-slate-600 hover:bg-slate-100"><i class="bx bx-log-out text-lg"></i> Abmelden</button>
+    </form>
+  </div>
+</aside>
+<?php endif; ?>
+<div class="flex min-h-screen min-w-0 flex-1 flex-col">
+<header class="sticky top-0 z-30 border-b border-slate-200 bg-white <?= $me ? 'lg:hidden' : '' ?>">
+  <div class="mx-auto flex h-16 max-w-7xl items-center gap-4 px-4 sm:px-6">
+    <a href="<?= url('home') ?>" class="flex shrink-0 items-center gap-2 font-semibold text-slate-900">
+      <span class="grid h-9 w-9 place-items-center rounded-lg bg-brand-600 text-white"><i class="bx bx-broadcast text-xl"></i></span>
+      <span class="hidden sm:inline"><?= e($platform) ?></span>
+    </a>
     <div class="ml-auto flex items-center gap-2">
       <?php if ($me): ?>
-        <a href="<?= url('account') ?>" title="<?= e($me['name']) ?>" class="hidden sm:flex items-center gap-2 rounded-md px-3 py-2 text-sm text-slate-600 hover:bg-slate-100">
-          <i class="bx bx-user-circle text-xl"></i>
-          <span class="hidden 2xl:block text-left leading-tight"><span class="block font-medium text-slate-800"><?= e($me['name']) ?></span><span class="block text-xs text-slate-500"><?= e(ROLE_LABELS[$me['role']]) ?></span></span>
-        </a>
-        <form method="post" action="<?= url('logout') ?>"><?= csrf_field() ?>
-          <button class="btn-ghost" title="Abmelden"><i class="bx bx-log-out text-xl"></i><span class="sr-only">Abmelden</span></button>
-        </form>
+        <details class="relative" data-menu>
+          <summary class="btn-ghost cursor-pointer list-none"><i class="bx bx-menu text-2xl"></i><span class="sr-only">Menü</span></summary>
+          <div class="absolute right-0 mt-2 max-h-[80vh] w-72 max-w-[calc(100vw-2rem)] space-y-1 overflow-y-auto rounded-lg border border-slate-200 bg-white p-2 shadow-lg" data-nav>
+            <?= Nav::render($me, (string) $current) ?>
+            <div class="mt-2 border-t border-slate-200 pt-2">
+              <a href="<?= url('account') ?>" class="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"><i class="bx bx-user-circle text-lg"></i><?= e($me['name']) ?> · Mein Konto</a>
+              <form method="post" action="<?= url('logout') ?>"><?= csrf_field() ?><button class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"><i class="bx bx-log-out text-lg"></i> Abmelden</button></form>
+            </div>
+          </div>
+        </details>
       <?php else: ?>
+        <a href="<?= url('home') ?>" class="btn-ghost hidden sm:inline-flex">Marktplatz</a>
         <a href="<?= url('login') ?>" class="btn-ghost">Anmelden</a>
         <a href="<?= url('register') ?>" class="btn-primary">Registrieren</a>
       <?php endif; ?>
-      <details class="xl:hidden relative">
-        <summary class="btn-ghost list-none cursor-pointer"><i class="bx bx-menu text-2xl"></i><span class="sr-only">Menü</span></summary>
-        <div class="absolute right-0 mt-2 w-60 rounded-lg border border-slate-200 bg-white p-2 shadow-lg">
-          <?php foreach ($nav as [$p, $label, $icon]): ?>
-            <a href="<?= url($p) ?>" class="flex items-center gap-2 rounded-md px-3 py-2 text-sm <?= $isActive($p) ? 'bg-brand-50 text-brand-700' : 'text-slate-700 hover:bg-slate-100' ?>"><i class="bx <?= $icon ?> text-lg"></i><?= e($label) ?></a>
-          <?php endforeach; ?>
-          <?php if ($me): ?><a href="<?= url('account') ?>" class="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"><i class="bx bx-user-circle text-lg"></i>Mein Konto</a><?php endif; ?>
-        </div>
-      </details>
     </div>
   </div>
 </header>
 
-<main class="flex-1 mx-auto w-full max-w-7xl px-4 sm:px-6 py-8">
+<main class="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6">
   <?php if ($me && $me['role'] === 'admin' && !licence()->isValid() && $current !== 'admin.licence'): ?>
     <div class="mb-4 flex items-start gap-2 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900" role="alert"><i class="bx bx-error-circle text-lg"></i>
       <span>Keine gültige Lizenz – die Anwendung läuft im Lesemodus (<?= e(TrsLicence::describe(licence() instanceof TrsLicence ? licence()->evaluate()['code'] : '')) ?>). <a class="underline" href="<?= url('admin.licence') ?>">Lizenz verwalten</a>.</span></div>
@@ -127,5 +111,7 @@ $isActive = fn (string $p) => $current === $p || ($p !== 'home' && str_starts_wi
     <span>Ein Projekt der VylarisGroup · <?php if ($me && $me['role'] === 'admin'): ?><a class="hover:underline" href="<?= url('admin.changelog') ?>" title="Änderungsprotokoll">v<?= APP_VERSION ?></a><?php else: ?>v<?= APP_VERSION ?><?php endif; ?></span>
   </div>
 </footer>
+</div>
+</div>
 </body>
 </html>

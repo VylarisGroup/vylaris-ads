@@ -79,7 +79,7 @@ function auth_register(): void
     if ($errors) {
         remember_input();
         foreach ($errors as $err) flash('error', $err);
-        redirect('register');
+        redirect('register', input('wizard') === '1' ? ['wizard' => 1] : []);
     }
     q('INSERT INTO users (email, password_hash, name, company, role, consent_at, consent_version) VALUES (?, ?, ?, ?, ?, NOW(), ?)',
         [$email, password_hash($password, PASSWORD_DEFAULT), $name, $company ?: null, $role, Legal::version()]);

@@ -899,6 +899,111 @@ $routes = require APP_ROOT . '/app/routes.php';
 check(isset($routes['admin.changelog']) && !isset($routes['admin.changelog'][4]) && $routes['admin.changelog'][3] === 'admin', 'Änderungsprotokoll ist lizenzunabhängig (auch im Lesemodus) und nur für Administratoren');
 
 
+echo "\n== Seitenleiste & Assistenten ==\n";
+$wu = substr(bin2hex(random_bytes(3)), 0, 6);
+$wp = new Client($base, 'wp');
+$wp->get('register', ['wizard' => 1]);
+check($wp->has('data-wizard') && $wp->has('data-step="Kontoart"') && $wp->has('Alle Felder auf einer Seite'), 'Registrierung: Assistent-Variante verfügbar');
+$wp->get('register'); check(!$wp->has('data-wizard') && $wp->has('Schritt für Schritt registrieren'), 'Registrierung: klassisches Formular bleibt Standard');
+$wp->post('register', ['wizard' => '1', 'name' => 'W', 'email' => 'kaputt', 'role' => 'publisher', 'password' => 'x', 'password2' => 'y']);
+check(str_contains($wp->url, 'wizard=1') && $wp->has('data-wizard'), 'Registrierung: Fehler bringen den Benutzer in den Assistenten zurück');
+$wp->post('register', ['wizard' => '1', 'name' => 'Wiebke Wizard', 'email' => "wp$wu@example.com", 'role' => 'publisher', 'password' => 'WizardPass123', 'password2' => 'WizardPass123', 'terms' => '1']);
+check($wp->has('Willkommen'), 'Registrierung über den Assistenten funktioniert');
+$wa = new Client($base, 'wa');
+$wa->get('register')->post('register', ['name' => 'Walter Werber', 'email' => "wa$wu@example.com", 'role' => 'advertiser', 'password' => 'WerberPass1234', 'password2' => 'WerberPass1234', 'terms' => '1']);
+
+$wp->get('dashboard');
+check($wp->has('<aside') && $wp->has('data-nav-group="publish"') && $wp->has('Webseite einrichten') && !$wp->has('data-nav-group="manage"') && !$wp->has('data-nav-group="advertise"'), 'Seitenleiste (Betreiber): eigene Gruppen, keine Admin-/Werbe-Gruppen');
+$wa->get('dashboard');
+check($wa->has('data-nav-group="advertise"') && $wa->has('Kampagne erstellen') && $wa->has('Werbeplatz buchen') && !$wa->has('data-nav-group="publish"'), 'Seitenleiste (Werbetreibender): Werbe-Gruppe mit Assistenten');
+$admin->get('dashboard');
+check($admin->has('data-nav-group="manage"') && $admin->has('data-nav-group="system"') && $admin->has('Einrichtungsassistent') && $admin->has('Änderungsprotokoll'), 'Seitenleiste (Admin): Gruppen Prüfung, Finanzen, Verwaltung, System');
+$wp->get('sites'); check(preg_match('/<details class="group" data-nav-group="publish" open data-active/', $wp->body) === 1, 'Aktive Gruppe ist beim Laden aufgeklappt');
+$wp->get('dashboard'); check(preg_match('/data-nav-group="publish" open/', $wp->body) === 0 && $wp->has('aria-current="page"'), 'Inaktive Gruppen sind eingeklappt, aktive Seite ist markiert');
+$anon->get('home'); check(!$anon->has('<aside') && $anon->has('Registrieren'), 'Gäste sehen keine Seitenleiste, aber Anmelden/Registrieren');
+
+// Zugriff
+$wa->get('wizard.site'); check($wa->code === 403, 'Betreiber-Assistent nur für Betreiber (403)');
+$wp->get('wizard.campaign'); check($wp->code === 403, 'Kampagnen-Assistent nur für Werbetreibende (403)');
+$wp->get('wizard.booking'); check($wp->code === 403, 'Buchungs-Assistent nur für Werbetreibende (403)');
+$wp->get('wizard.setup'); check($wp->code === 403, 'Einrichtungsassistent nur für Administratoren (403)');
+$anon->get('wizard.site'); check(str_contains($anon->url, 'p=login'), 'Assistenten erfordern Anmeldung');
+foreach (['site.form' => 'wp', 'campaign.form' => 'wa'] as $page => $who) { $c = $$who; $c->get($page); check($c->code === 200 && $c->has('<form'), "Klassisches Formular $page bleibt erreichbar"); }
+
+// Betreiber-Assistent: Webseite + Werbeplatz atomar
+$wp->get('wizard.site');
+check($wp->code === 200 && $wp->clean() && substr_count($wp->body, 'data-step=') === 4 && $wp->has('Klassisches Formular') && $wp->has('data-summary-list'), 'Betreiber-Assistent: 4 Schritte inkl. Zusammenfassung');
+$slotFields = ['slot_name' => 'Sidebar', 'slot_format' => '300x250', 'slot_placement' => 'rechts', 'slot_description' => 'Sichtbar auf allen Seiten.', 'slot_price_per_day' => '12.50', 'slot_min_days' => '3', 'slot_max_days' => '30', 'slot_available_from' => $today, 'slot_available_until' => ''];
+$siteFields = ['site_name' => 'Wizard Blog', 'site_url' => 'https://wizard.example.com', 'site_category' => 'Technologie', 'site_monthly_visitors' => '1200', 'site_description' => 'Ein Blog über Assistenten und Benutzerführung.'];
+$before = [(int) val('SELECT COUNT(*) FROM sites'), (int) val('SELECT COUNT(*) FROM ad_slots')];
+$wp->post('wizard.site', $siteFields + array_merge($slotFields, ['slot_price_per_day' => '']));
+check($wp->has('Tagespreis') && (int) val('SELECT COUNT(*) FROM sites') === $before[0] && (int) val('SELECT COUNT(*) FROM ad_slots') === $before[1], 'Assistent: ungültiger Werbeplatz → es wird auch keine Webseite angelegt (alles oder nichts)');
+check($wp->has('value="Wizard Blog"') && $wp->has('data-start="last"'), 'Assistent: Eingaben bleiben nach Fehler erhalten, Start bei der Zusammenfassung');
+$wp->post('wizard.site', array_merge($siteFields, ['site_url' => 'javascript:alert(1)']) + $slotFields);
+check($wp->has('gültige URL') && (int) val('SELECT COUNT(*) FROM sites') === $before[0], 'Assistent: Webseiten-Validierung identisch zum Formular (URL-Schema)');
+$wp->post('wizard.site', $siteFields + $slotFields);
+check($wp->has('Webseite und Werbeplatz angelegt') && (int) val('SELECT COUNT(*) FROM sites') === $before[0] + 1 && (int) val('SELECT COUNT(*) FROM ad_slots') === $before[1] + 1, 'Assistent legt Webseite und Werbeplatz gemeinsam an');
+$newSite = one("SELECT * FROM sites WHERE name = 'Wizard Blog'");
+$newSlot = one('SELECT * FROM ad_slots WHERE site_id = ?', [$newSite['id']]);
+check($newSite['status'] === 'pending' && (int) $newSite['monthly_visitors'] === 1200 && $newSlot['status'] === 'pending' && (int) $newSlot['price_per_day'] === 1250 && $newSlot['format'] === '300x250', 'Gespeicherte Werte und Status „in Prüfung“ stimmen');
+check((int) val("SELECT COUNT(*) FROM audit_log WHERE action = 'wizard.completed'") >= 1 && (int) val("SELECT COUNT(*) FROM audit_log WHERE action = 'site.created' AND entity_id = ?", [$newSite['id']]) === 1, 'Assistent wird im Protokoll festgehalten');
+$wp->post('wizard.site', array_merge($siteFields, ['site_name' => 'Zweiter Blog']) + $slotFields);
+$limited = !licence()->hasFeature('multi_site');
+check($limited ? ($wp->has('höchstens') && (int) val("SELECT COUNT(*) FROM sites WHERE name = 'Zweiter Blog'") === 0) : ((int) val("SELECT COUNT(*) FROM sites WHERE name = 'Zweiter Blog'") === 1), 'Assistent beachtet das Webseiten-Limit der Lizenz (Scope multi_site)');
+$wp->get('wizard.site', ['site_id' => $newSite['id']]);
+check($wp->code === 200 && substr_count($wp->body, 'data-step=') === 3 && $wp->has('name="site_id"') && !$wp->has('name="site_name"'), 'Werbeplatz-Assistent für bestehende Webseite: ohne Webseiten-Schritt');
+$wp->post('wizard.site', ['site_id' => $newSite['id']] + array_merge($slotFields, ['slot_name' => 'Footer', 'slot_format' => 'custom', 'slot_width' => '640', 'slot_height' => '120']));
+check($wp->has('Werbeplatz angelegt') && (string) val("SELECT format FROM ad_slots WHERE name = 'Footer'") === '640x120', 'Zusätzlicher Werbeplatz über den Assistenten (eigenes Format)');
+$wp->get('wizard.site', ['site_id' => $siteId]); check($wp->code === 404, 'Assistent: fremde Webseite → 404');
+
+// Kampagnen-Assistent
+$wa->get('wizard.campaign');
+check($wa->code === 200 && $wa->clean() && $wa->has('action="index.php?p=campaign.form"') && $wa->has('enctype="multipart/form-data"') && $wa->has('data-banner-input') && $wa->has('name="_csrf"'), 'Kampagnen-Assistent sendet an das klassische Formular (inkl. Upload und CSRF)');
+$wa->post('campaign.form', ['name' => 'Wizard Kampagne', 'target_url' => 'https://example.com/aktion', 'alt_text' => 'Aktion', 'banner' => png("$tmp/wiz.png", 300, 250)]);
+check($wa->has('Kampagne angelegt') && (int) val("SELECT COUNT(*) FROM campaigns WHERE name = 'Wizard Kampagne'") === 1, 'Kampagne über den Assistenten-Weg angelegt');
+
+// Buchungs-Assistent
+$wa->get('wizard.booking');
+check($wa->code === 200 && $wa->clean() && $wa->has('data-slot-select') && $wa->has('data-campaign-select') && $wa->has('action="index.php?p=booking.request"') && substr_count($wa->body, 'data-step=') === 4, 'Buchungs-Assistent: Werbeplatz, Kampagne, Zeitraum, Prüfen');
+check(preg_match('/<option value="\d+"[^>]*data-w="\d+" data-h="\d+" data-price="\d+"/s', $wa->body) === 1, 'Buchungs-Assistent listet buchbare Werbeplätze mit Format und Preis');
+check(!str_contains($wa->body, 'Wizard Blog – Sidebar'), 'Noch nicht freigegebene Werbeplätze erscheinen nicht');
+$wp->get('wizard.booking'); 
+q("UPDATE sites SET status = 'approved' WHERE id = ?", [$newSite['id']]); q("UPDATE ad_slots SET status = 'approved' WHERE id = ?", [$newSlot['id']]);
+$wa->get('wizard.booking', ['slot_id' => $newSlot['id']]);
+check($wa->has('Wizard Blog – Sidebar') && preg_match('/value="' . $newSlot['id'] . '" selected/', $wa->body) === 1 && $wa->has('data-start="1"'), 'Freigegebener Werbeplatz erscheint; Vorauswahl über slot_id springt zum Kampagnen-Schritt');
+q("UPDATE campaigns SET status = 'approved' WHERE name = 'Wizard Kampagne'");
+$wcid = (int) val("SELECT id FROM campaigns WHERE name = 'Wizard Kampagne'");
+$wa->get('wizard.booking', ['slot_id' => $newSlot['id']]); check($wa->has('value="' . $wcid . '"') , 'Freigegebene Kampagne erscheint im Assistenten');
+$wa->post('booking.request', ['slot_id' => $newSlot['id'], 'campaign_id' => $wcid, 'start_date' => $plus(2), 'end_date' => $plus(8), 'message' => 'Per Assistent']);
+check($wa->has('Buchungsanfrage wurde gesendet') && (string) val("SELECT total_amount FROM bookings WHERE slot_id = ? ORDER BY id DESC LIMIT 1", [$newSlot['id']]) === (string) (7 * 1250), 'Buchung über den Assistenten-Weg: Preis serverseitig berechnet (7 Tage × 12.50)');
+$wa->post('booking.request', ['slot_id' => $newSlot['id'], 'campaign_id' => $wcid, 'start_date' => $plus(4), 'end_date' => $plus(10), 'message' => '']);
+check($wa->has('belegt') || $wa->has('bereits'), 'Doppelbuchungsschutz gilt auch für den Assistenten');
+
+// Einrichtungsassistent (Admin)
+$admin->get('wizard.setup');
+check($admin->code === 200 && $admin->clean() && substr_count($admin->body, 'data-step=') === 5 && $admin->has('name="legal_hoster"'), 'Einrichtungsassistent: Plattform, Provision, Zahlung, Rechtliches, Prüfen');
+$nameBefore = setting('platform_name'); $bpBefore = (string) val("SELECT value FROM settings WHERE name = 'commission_bp'");
+$good = ['platform_name' => 'Wizard Plattform', 'currency' => (string) val("SELECT value FROM settings WHERE name = 'currency'"), 'invoice_prefix' => 'WZ', 'commission' => '12.5', 'min_payout' => '50.00', 'bank_details' => "Testbank\nIBAN CH00 0000 0000 0000 0000 0", 'legal_name' => 'Wizard AG', 'legal_email' => 'info@wizard.example', 'legal_address' => "Weg 1\n8000 Zürich", 'legal_phone' => '', 'legal_hoster' => 'Hoster AG, Bern'];
+$admin->post('wizard.setup', array_merge($good, ['commission' => '77']));
+check($admin->has('Provision') && (string) val("SELECT value FROM settings WHERE name = 'platform_name'") === $nameBefore, 'Einrichtungsassistent: Fehler → nichts wird gespeichert (alles oder nichts)');
+$admin->post('wizard.setup', array_merge($good, ['legal_email' => 'keine-mail']));
+check($admin->has('E-Mail') && (string) val("SELECT value FROM settings WHERE name = 'platform_name'") === $nameBefore, 'Einrichtungsassistent: ungültige Rechtsangabe verwirft auch die Plattform-Einstellungen');
+$admin->post('wizard.setup', $good);
+check((string) val("SELECT value FROM settings WHERE name = 'platform_name'") === 'Wizard Plattform' && (string) val("SELECT value FROM settings WHERE name = 'commission_bp'") === '1250' && (string) val("SELECT value FROM settings WHERE name = 'legal_name'") === 'Wizard AG', 'Einrichtungsassistent speichert Plattform, Provision und Betreiberangaben');
+set_setting('legal_terms_custom', 'Eigener Text bleibt'); set_setting('legal_representative', 'Vorstand X');
+$admin->post('wizard.setup', $good);
+check(setting('legal_terms_custom') === 'Eigener Text bleibt' && (string) val("SELECT value FROM settings WHERE name = 'legal_representative'") === 'Vorstand X', 'Einrichtungsassistent lässt nicht abgefragte Rechtsfelder und eigene Texte unberührt');
+set_setting('platform_name', $nameBefore); set_setting('commission_bp', $bpBefore); set_setting('legal_terms_custom', ''); set_setting('legal_representative', '');
+
+echo "\n== Assistenten-Oberfläche (statisch) ==\n";
+$js = (string) file_get_contents(APP_ROOT . '/public/assets/app.js');
+check(str_contains($js, 'form[data-wizard]') && str_contains($js, 'data-nav-group') && str_contains($js, 'localStorage'), 'JavaScript: Assistenten-Logik und Merken der Menüzustände vorhanden');
+check(!preg_match('/\bblob:|eval\(|new Function|innerHTML\s*=\s*[^`\'"]*(value|name)/', $js . ''), 'JavaScript: keine blob-URLs/eval; Benutzereingaben werden per textContent ausgegeben');
+foreach (['wizard/site', 'wizard/campaign', 'wizard/booking', 'wizard/setup'] as $v) {
+    $src = (string) file_get_contents(APP_ROOT . "/app/views/$v.php");
+    check(str_contains($src, 'csrf_field()') && str_contains($src, 'data-wizard') && !str_contains($src, 'onclick=') && !str_contains($src, '<script'), "Assistenten-Vorlage $v: CSRF, keine Inline-Skripte");
+}
+
 echo "\nErgebnis: $passed bestanden, $failed fehlgeschlagen\n";
 array_map('unlink', glob("$tmp/*") ?: []);
 @rmdir($tmp);

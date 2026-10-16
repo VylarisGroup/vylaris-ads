@@ -218,13 +218,10 @@ function admin_finance(): void
     ]);
 }
 
-function admin_settings(): void
+/** Prüft und speichert die Plattform-Einstellungen aus $_POST (gemeinsam für Formular und Assistent). */
+function settings_apply(): void
 {
     $hasBookings = (int) val('SELECT COUNT(*) FROM bookings') > 0;
-    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-        view('admin/settings', ['title' => 'Einstellungen', 'hasBookings' => $hasBookings]);
-        return;
-    }
     $name = input('platform_name');
     $currency = strtoupper(input('currency'));
     $commission = input('commission');
@@ -250,21 +247,33 @@ function admin_settings(): void
     set_setting('invoice_prefix', $prefix);
     set_setting('min_payout', (string) $minPayout);
     audit('settings.updated', 'settings', null, ['commission_bp' => ['from' => $old, 'to' => $bp], 'currency' => $currency]);
+}
+
+function admin_settings(): void
+{
+    $hasBookings = (int) val('SELECT COUNT(*) FROM bookings') > 0;
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        view('admin/settings', ['title' => 'Einstellungen', 'hasBookings' => $hasBookings]);
+        return;
+    }
+    settings_apply();
     flash('success', 'Einstellungen gespeichert. Eine geänderte Provision gilt nur für neue Buchungsanfragen.');
     redirect('admin.settings');
 }
 
-function admin_legal(): void
+/** Prüft und speichert die rechtlichen Angaben aus $_POST; mit $only nur die genannten Felder (Assistent). Gibt zurück, ob sich etwas geändert hat. */
+function legal_apply(?array $only = null): bool
 {
     $limits = ['name' => 160, 'address' => 500, 'email' => 190, 'phone' => 40, 'register' => 500, 'representative' => 190, 'hoster' => 300];
     $new = [];
     foreach ($limits as $f => $max) {
+        if ($only !== null && !in_array($f, $only, true)) continue;
         $v = trim(str_replace("\r", '', (string) ($_POST['legal_' . $f] ?? '')));
         if (mb_strlen($v) > $max) throw new UserError("Das Feld „$f“ ist zu lang (max. $max Zeichen).");
         $new['legal_' . $f] = $v;
     }
-    if ($new['legal_email'] !== '' && !filter_var($new['legal_email'], FILTER_VALIDATE_EMAIL)) throw new UserError('Bitte eine gültige Kontakt-E-Mail-Adresse angeben.');
-    foreach (array_keys(Legal::PAGES) as $page) {
+    if (($new['legal_email'] ?? '') !== '' && !filter_var($new['legal_email'], FILTER_VALIDATE_EMAIL)) throw new UserError('Bitte eine gültige Kontakt-E-Mail-Adresse angeben.');
+    foreach ($only !== null ? [] : array_keys(Legal::PAGES) as $page) {
         $v = trim(str_replace("\r", '', (string) ($_POST['legal_' . $page . '_custom'] ?? '')));
         if (mb_strlen($v) > 30000) throw new UserError('Ein eigener Rechtstext ist zu lang (max. 30\'000 Zeichen).');
         $new['legal_' . $page . '_custom'] = $v;
@@ -280,6 +289,12 @@ function admin_legal(): void
         set_setting('legal_version', date('Y-m-d'));
     }
     audit('settings.legal_updated', 'settings', null, ['changed' => $changed]);
+    return $changed;
+}
+
+function admin_legal(): void
+{
+    $changed = legal_apply();
     flash('success', $changed ? 'Rechtliche Angaben gespeichert (Fassung ' . date('d.m.Y') . ').' : 'Keine Änderungen.');
     redirect('admin.settings');
 }

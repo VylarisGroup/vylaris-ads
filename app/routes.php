@@ -50,6 +50,12 @@ return [
     'receipt'                => ['bookings',   'booking_receipt',       ['GET'],         'auth'],
     'banner'                 => ['media',      'media_banner',          ['GET'],         'auth'],
 
+    // Assistenten (Schritt für Schritt; senden an dieselbe Logik wie die klassischen Formulare, die bestehen bleiben)
+    'wizard.site'            => ['wizard',     'wizard_site',           ['GET', 'POST'], 'publisher', 'sites.manage'],
+    'wizard.campaign'        => ['wizard',     'wizard_campaign',       ['GET'],         'advertiser', 'campaigns.manage'],
+    'wizard.booking'         => ['wizard',     'wizard_booking',        ['GET'],         'advertiser', 'bookings.manage'],
+    'wizard.setup'           => ['wizard',     'wizard_setup',          ['GET', 'POST'], 'admin'],
+
     // Administration
     'admin.reviews'          => ['admin',      'admin_reviews',         ['GET'],         'admin', 'admin.review'],
     'admin.review'           => ['admin',      'admin_review',          ['POST'],        'admin', 'admin.review'],

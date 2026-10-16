@@ -31,6 +31,40 @@ function sites_index(): void
     view('publisher/sites', ['title' => 'Meine Webseiten', 'sites' => $sites, 'slotsBySite' => $bySite]);
 }
 
+/** Liest und prüft die Webseiten-Felder aus $_POST (mit Feldnamen-Präfix $p; gemeinsam für Formular und Assistent). */
+function site_input(string $p = ''): array
+{
+    $name = input($p . 'name');
+    $url = input($p . 'url');
+    $category = input($p . 'category');
+    $description = input($p . 'description');
+    $visitors = input($p . 'monthly_visitors') === '' ? 0 : input_int($p . 'monthly_visitors', -1);
+
+    if (!len_between($name, 2, 160)) throw new UserError('Bitte einen Namen (2–160 Zeichen) angeben.');
+    if (!valid_url($url) || strlen($url) > 255) throw new UserError('Bitte eine gültige URL (http/https) angeben.');
+    if (!in_array($category, SITE_CATEGORIES, true)) throw new UserError('Bitte eine Kategorie wählen.');
+    if (!len_between($description, 20, 3000)) throw new UserError('Bitte eine Beschreibung mit 20–3000 Zeichen angeben.');
+    if ($visitors < 0 || $visitors > 2000000000) throw new UserError('Bitte eine gültige Besucherzahl angeben.');
+    return ['name' => $name, 'url' => $url, 'category' => $category, 'description' => $description, 'visitors' => $visitors];
+}
+
+function site_check_limit(): void
+{
+    if (!licence()->hasFeature('multi_site')
+        && (int) val('SELECT COUNT(*) FROM sites WHERE user_id = ?', [uid()]) >= licence()->freeSites()) {
+        throw new UserError('Ihre Lizenz erlaubt höchstens ' . licence()->freeSites() . ' Webseite(n) pro Betreiber (Scope multi_site).');
+    }
+}
+
+function site_create(array $in): int
+{
+    q('INSERT INTO sites (user_id, name, url, category, description, monthly_visitors) VALUES (?, ?, ?, ?, ?, ?)',
+        [uid(), $in['name'], $in['url'], $in['category'], $in['description'], $in['visitors']]);
+    $id = (int) db()->lastInsertId();
+    audit('site.created', 'site', $id);
+    return $id;
+}
+
 function site_form(): void
 {
     $id = input_int('id');
@@ -39,33 +73,16 @@ function site_form(): void
         view('publisher/site_form', ['title' => $site ? 'Webseite bearbeiten' : 'Webseite hinzufügen', 'site' => $site]);
         return;
     }
-    $name = input('name');
-    $url = input('url');
-    $category = input('category');
-    $description = input('description');
-    $visitors = input('monthly_visitors') === '' ? 0 : input_int('monthly_visitors', -1);
-
-    if (!len_between($name, 2, 160)) throw new UserError('Bitte einen Namen (2–160 Zeichen) angeben.');
-    if (!valid_url($url) || strlen($url) > 255) throw new UserError('Bitte eine gültige URL (http/https) angeben.');
-    if (!in_array($category, SITE_CATEGORIES, true)) throw new UserError('Bitte eine Kategorie wählen.');
-    if (!len_between($description, 20, 3000)) throw new UserError('Bitte eine Beschreibung mit 20–3000 Zeichen angeben.');
-    if ($visitors < 0 || $visitors > 2000000000) throw new UserError('Bitte eine gültige Besucherzahl angeben.');
-
-    if (!$site && !licence()->hasFeature('multi_site')
-        && (int) val('SELECT COUNT(*) FROM sites WHERE user_id = ?', [uid()]) >= licence()->freeSites()) {
-        throw new UserError('Ihre Lizenz erlaubt höchstens ' . licence()->freeSites() . ' Webseite(n) pro Betreiber (Scope multi_site).');
-    }
+    $in = site_input();
+    if (!$site) site_check_limit();
     if ($site) {
         // Änderungen werden erneut geprüft; bestehende Buchungen bleiben unberührt.
         q("UPDATE sites SET name = ?, url = ?, category = ?, description = ?, monthly_visitors = ?, status = 'pending', admin_note = NULL WHERE id = ?",
-            [$name, $url, $category, $description, $visitors, $site['id']]);
+            [$in['name'], $in['url'], $in['category'], $in['description'], $in['visitors'], $site['id']]);
         audit('site.updated', 'site', (int) $site['id']);
         flash('success', 'Webseite gespeichert. Sie wird erneut von einem Administrator geprüft.');
     } else {
-        q('INSERT INTO sites (user_id, name, url, category, description, monthly_visitors) VALUES (?, ?, ?, ?, ?, ?)',
-            [uid(), $name, $url, $category, $description, $visitors]);
-        $id = (int) db()->lastInsertId();
-        audit('site.created', 'site', $id);
+        site_create($in);
         flash('success', 'Webseite angelegt. Nach der Freigabe durch einen Administrator sind Ihre Werbeplätze buchbar. Sie können bereits jetzt Werbeplätze anlegen.');
     }
     redirect('sites');
@@ -97,30 +114,24 @@ function site_delete(): void
     redirect('sites');
 }
 
-function slot_form(): void
+/** Liest und prüft die Werbeplatz-Felder aus $_POST (gemeinsam für Formular und Assistent). */
+function slot_input(string $p = ''): array
 {
-    $id = input_int('id');
-    $slot = $id ? own_slot($id) : null;
-    $site = own_site($slot ? (int) $slot['site_id'] : input_int('site_id'));
-    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-        view('publisher/slot_form', ['title' => $slot ? 'Werbeplatz bearbeiten' : 'Werbeplatz anlegen', 'slot' => $slot, 'site' => $site]);
-        return;
-    }
-    $name = input('name');
-    $format = input('format');
-    $placement = input('placement');
-    $description = input('description');
-    $price = parse_money(input('price_per_day'));
-    $minDays = input_int('min_days', 0);
-    $maxDays = input_int('max_days', 0);
-    $from = parse_date(input('available_from'));
-    $untilRaw = input('available_until');
+    $name = input($p . 'name');
+    $format = input($p . 'format');
+    $placement = input($p . 'placement');
+    $description = input($p . 'description');
+    $price = parse_money(input($p . 'price_per_day'));
+    $minDays = input_int($p . 'min_days', 0);
+    $maxDays = input_int($p . 'max_days', 0);
+    $from = parse_date(input($p . 'available_from'));
+    $untilRaw = input($p . 'available_until');
     $until = $untilRaw === '' ? null : parse_date($untilRaw);
 
     if (!len_between($name, 2, 160)) throw new UserError('Bitte einen Namen (2–160 Zeichen) angeben.');
     if ($format === 'custom') {
-        $w = input_int('width');
-        $h = input_int('height');
+        $w = input_int($p . 'width');
+        $h = input_int($p . 'height');
         if ($w < 10 || $w > 2000 || $h < 10 || $h > 2000) throw new UserError('Eigenes Format: Breite und Höhe müssen zwischen 10 und 2000 Pixel liegen.');
         $format = $w . 'x' . $h;
     } elseif (isset(AD_FORMATS[$format])) {
@@ -134,6 +145,32 @@ function slot_form(): void
     if ($minDays < 1 || $minDays > 365 || $maxDays < $minDays || $maxDays > 365) throw new UserError('Mindest- und Höchstlaufzeit müssen zwischen 1 und 365 Tagen liegen (Minimum ≤ Maximum).');
     if (!$from) throw new UserError('Bitte ein gültiges Verfügbarkeitsdatum angeben.');
     if ($untilRaw !== '' && (!$until || $until < $from)) throw new UserError('Das Ende der Verfügbarkeit muss nach dem Beginn liegen.');
+    return ['name' => $name, 'format' => $format, 'w' => $w, 'h' => $h, 'placement' => $placement, 'description' => $description,
+        'price' => $price, 'min' => $minDays, 'max' => $maxDays, 'from' => $from, 'until' => $until];
+}
+
+function slot_create(int $siteId, array $in): int
+{
+    q('INSERT INTO ad_slots (site_id, name, format, width, height, placement, description, price_per_day, min_days, max_days, available_from, available_until)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [$siteId, $in['name'], $in['format'], $in['w'], $in['h'], $in['placement'], $in['description'], $in['price'], $in['min'], $in['max'], $in['from'], $in['until']]);
+    $id = (int) db()->lastInsertId();
+    audit('slot.created', 'slot', $id, ['price_per_day' => $in['price']]);
+    return $id;
+}
+
+function slot_form(): void
+{
+    $id = input_int('id');
+    $slot = $id ? own_slot($id) : null;
+    $site = own_site($slot ? (int) $slot['site_id'] : input_int('site_id'));
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        view('publisher/slot_form', ['title' => $slot ? 'Werbeplatz bearbeiten' : 'Werbeplatz anlegen', 'slot' => $slot, 'site' => $site]);
+        return;
+    }
+    $in = slot_input();
+    ['name' => $name, 'format' => $format, 'w' => $w, 'h' => $h, 'placement' => $placement, 'description' => $description,
+     'price' => $price, 'min' => $minDays, 'max' => $maxDays, 'from' => $from, 'until' => $until] = $in;
 
     if ($slot) {
         $openBookings = (int) val("SELECT COUNT(*) FROM bookings WHERE slot_id = ? AND status IN ('requested','accepted','paid')", [$slot['id']]);
@@ -146,11 +183,7 @@ function slot_form(): void
         audit('slot.updated', 'slot', (int) $slot['id'], ['price_per_day' => $price]);
         flash('success', 'Werbeplatz gespeichert. Er wird erneut geprüft; bestehende Buchungen behalten ihren Preis.');
     } else {
-        q('INSERT INTO ad_slots (site_id, name, format, width, height, placement, description, price_per_day, min_days, max_days, available_from, available_until)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-            [$site['id'], $name, $format, $w, $h, $placement, $description, $price, $minDays, $maxDays, $from, $until]);
-        $newId = (int) db()->lastInsertId();
-        audit('slot.created', 'slot', $newId, ['price_per_day' => $price]);
+        slot_create((int) $site['id'], $in);
         flash('success', 'Werbeplatz angelegt. Er wird nach der Freigabe durch einen Administrator buchbar.');
     }
     redirect('sites');

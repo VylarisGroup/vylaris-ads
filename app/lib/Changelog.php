@@ -42,7 +42,7 @@ final class Changelog
                 $sec = 'Änderungen';
             } elseif ($cur && preg_match('/^###\s+(.{1,60})\s*$/u', $line, $m)) {
                 $sec = trim($m[1]);
-            } elseif ($cur && preg_match('/^[-*]\s+(.+)$/u', $line, $m)) {
+            } elseif ($cur && preg_match('/^\s*[-*]\s+(.+)$/u', $line, $m)) { // auch eingerückte Unterpunkte werden als eigene Stichpunkte geführt
                 $cur['sections'][$sec][] = trim($m[1]);
             } elseif ($cur && preg_match('/^\s{2,}(\S.*)$/u', $line, $m) && !empty($cur['sections'][$sec])) {
                 $cur['sections'][$sec][count($cur['sections'][$sec]) - 1] .= ' ' . trim($m[1]); // Fortsetzungszeile
