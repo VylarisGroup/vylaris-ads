@@ -3,15 +3,14 @@ declare(strict_types=1);
 
 // CLI-Installation (Alternative zum Web-Installer), z. B. per SSH:
 //   cp config/config.example.php config/config.php   # Zugangsdaten eintragen
-//   php bin/install.php --admin-email=admin@example.com --admin-name="Admin" --admin-password="geheimes-passwort" --licence-key=VA-XXXX-XXXX-XXXX [--update-repo=konto/repo [--update-token=...]]
-// Der öffentliche Lizenzschlüssel (Ed25519, PEM) gehört in config/config.php → integrations.licence.public_key.
+//   php bin/install.php --admin-email=admin@example.com --admin-name="Admin" --admin-password="geheimes-passwort" --licence-key=VA-XXXX-XXXX-XXXX
 
 if (PHP_SAPI !== 'cli') {
     exit('Nur über die Kommandozeile ausführbar.');
 }
 require dirname(__DIR__) . '/app/lib/Installer.php';
 
-$opt = getopt('', ['admin-email:', 'admin-name:', 'admin-password:', 'licence-key:', 'update-repo:', 'update-token:']);
+$opt = getopt('', ['admin-email:', 'admin-name:', 'admin-password:', 'licence-key:']);
 $configFile = Installer::root() . '/config/config.php';
 if (!is_file($configFile)) {
     fwrite(STDERR, "config/config.php fehlt. Bitte config/config.example.php kopieren und anpassen.\n");
@@ -37,13 +36,9 @@ try {
     }
     if (!empty($opt['licence-key'])) {
         Installer::saveLicenceKey($pdo, (string) $opt['licence-key']);
-        echo "Lizenzschlüssel gespeichert (öffentlicher Schlüssel: integrations.licence.public_key in config/config.php).\n";
+        echo "Lizenzschlüssel gespeichert.\n";
     } else {
         echo "Hinweis: Kein Lizenzschlüssel angegeben (--licence-key) – ohne Lizenz läuft die Anwendung im Lesemodus. Eintrag später unter Administration → Lizenz.\n";
-    }
-    if (!empty($opt['update-repo'])) {
-        Installer::saveUpdateSource($pdo, (string) $opt['update-repo'], (string) ($opt['update-token'] ?? ''), (string) $config['app']['secret']);
-        echo "Update-Quelle gespeichert: {$opt['update-repo']}\n";
     }
     Installer::lock();
     echo "Fertig. Web-Installer ist gesperrt; public/install.php kann gelöscht werden.\n";

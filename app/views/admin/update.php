@@ -45,13 +45,8 @@ $fmt = fn ($t) => $t ? date('d.m.Y H:i', (int) $t) : '–';
 
   <div class="space-y-6">
     <form method="post" action="<?= url('admin.update') ?>" class="card space-y-3 p-6"><?= csrf_field() ?><input type="hidden" name="action" value="save">
-      <h2 class="font-semibold text-slate-900">GitHub-Repository</h2>
-      <div><label class="label" for="repo">Repository (besitzer/name)</label>
-        <input class="input font-mono" id="repo" name="repo" value="<?= e(Updater::repo()) ?>" maxlength="201" placeholder="VylarisGroup/vylaris-ads" autocomplete="off"></div>
-      <div><label class="label" for="token">Zugriffstoken (nur bei privaten Repositories)</label>
-        <input class="input font-mono" id="token" name="token" type="password" autocomplete="new-password" maxlength="255" placeholder="<?= setting('update_token') !== '' ? '•••••••• (gespeichert, leer lassen = unverändert)' : 'github_pat_…' ?>">
-        <p class="mt-1 text-xs text-slate-500">Empfohlen: Fine-grained Token mit ausschliesslich <em>Contents: Read-only</em> für dieses Repository. Das Token wird verschlüsselt gespeichert.</p></div>
-      <?php if (setting('update_token') !== ''): ?><label class="flex items-center gap-2 text-sm"><input type="checkbox" name="remove_token" value="1" class="accent-brand-600"> Gespeichertes Token entfernen</label><?php endif; ?>
+      <h2 class="font-semibold text-slate-900">Update-Quelle</h2>
+      <p class="text-sm text-slate-600">Updates werden ausschliesslich aus dem offiziellen Release-Repository bezogen: <code class="break-all"><?= e(Updater::repo()) ?></code>. Die Quelle ist fest vorgegeben und kann hier nicht geändert werden.</p>
       <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="auto" value="1" class="accent-brand-600" <?= setting('update_auto', '1') === '1' ? 'checked' : '' ?>> Täglich automatisch auf neue Versionen prüfen (Hinweis, keine automatische Installation)</label>
       <button class="btn-primary"><i class="bx bx-save"></i> Speichern</button>
     </form>

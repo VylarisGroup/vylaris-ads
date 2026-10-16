@@ -126,7 +126,7 @@ location ~ \.php$ { return 404; }
 | `security.login_max_attempts` / `login_window_min` | Login-Drosselung (5 Fehlversuche je E-Mail bzw. 15 je IP in 15 Minuten) |
 | `privacy.retention_years` | Aufbewahrungsfrist für Abrechnungsdaten nach Ende des Geschäftsjahres (Standard 10) |
 | `privacy.log_ip_days` | Anzahl Tage, nach denen IP-Adressen im Protokoll gelöscht werden (Standard 30) |
-| `integrations.licence*` | Lizenzserver, Produktkennung und öffentlicher Schlüssel (siehe „Lizenz und Berechtigungs-Scopes“) |
+| `integrations.update.*` | Optional: `token` (nur bei privatem Release-Repository), `check_hours`, `webroot` (siehe „Updates aus GitHub“). Lizenzserver, Lizenz-Schlüssel und Update-Repository sind **nicht** konfigurierbar |
 | `integrations.listeners_file` | Optionale Event-Listener für das VylarisGroup-Ökosystem (siehe unten) |
 
 Geschäftsparameter (Provision, Währung, Bankdaten, …) stehen in der Datenbank und werden im Admin-Bereich gepflegt.
@@ -137,7 +137,7 @@ VylarisAdvertise ist lizenzpflichtig und prüft den Schlüssel gegen **TRS Licen
 
 **Einrichtung**
 1. Auf dem Lizenzserver ein Produkt mit der Kennung `vylaris-advertise` und Tarife anlegen; die `features` des Tarifs sind die Scopes (siehe unten).
-2. Der öffentliche Ed25519-Schlüssel des Lizenzservers ist bereits in `config/config.example.php` (und damit nach der Installation in `config/config.php`) unter `integrations.licence.public_key` hinterlegt; der Web-Installer erlaubt optional einen anderen. Er wird bewusst fest in der Installation hinterlegt und nie vom Server geladen.
+2. **Lizenzserver (`https://licence.vylaris.ch`), Produktkennung und öffentlicher Ed25519-Schlüssel sind fest im Programm hinterlegt** (`TrsLicence`) und lassen sich weder in der Weboberfläche noch in `config/config.php` ändern; der Schlüssel wird nie vom Server geladen.
 3. Lizenzschlüssel im Installer (`--licence-key=…` bei `bin/install.php`) oder unter **Administration → Lizenz** eintragen. Das Gerät wird automatisch aktiviert; *Gerät abmelden* gibt den Platz wieder frei.
 
 **Ablauf:** Heartbeat alle ca. 15 Minuten (bei Seitenaufrufen und per `bin/cron.php`, Timeout 5 s, bei Fehlern Wiederholung nach 5 Minuten). Jede Antwort wird gegen den öffentlichen Schlüssel geprüft (Ed25519) und bei jeder Auswertung erneut verifiziert, der Zeitstempel muss innerhalb von 5 Minuten liegen. Zusätzlich wird eine signierte **Offline-Lizenz** gespeichert (an die Geräte-ID gebunden): Ist der Server nicht erreichbar, läuft die Anwendung damit bis `validUntil` weiter (laut Server max. 30 Tage). Eine definitive Ablehnung (gesperrt, abgelaufen, unbekannt, falsches Produkt, Gerätelimit) wirkt sofort. Die Geräte-ID wird aus `app.secret` abgeleitet – bei Umzug `config.php` mitnehmen oder das Gerät vorher abmelden.
@@ -160,7 +160,7 @@ VylarisAdvertise ist lizenzpflichtig und prüft den Schlüssel gegen **TRS Licen
 | `stats.view` | Einnahmen- und Finanzstatistiken |
 | `legal.edit` | Impressum/Datenschutzangaben bearbeiten |
 | `audit.view` | Audit-Log |
-| `multi_site` | mehr als eine Webseite pro Betreiber (sonst `integrations.licence.free_sites`, Standard 1) |
+| `multi_site` | mehr als eine Webseite pro Betreiber (sonst höchstens eine) |
 | `dual_role` | Konten mit beiden Rollen (Registrierung, Upgrade, Admin) |
 
 Die Zuordnung Route → Scope steht als fünftes Element in `app/routes.php` und wird zentral in `public/index.php` erzwungen; Scopes innerhalb von Aktionen prüft `require_scope()`. Neue Funktionen: Scope in `licence_scopes()` eintragen und der Route zuweisen.
@@ -171,7 +171,7 @@ Die Zuordnung Route → Scope steht als fünftes Element in `app/routes.php` und
 
 Die Anwendung kann sich aus **GitHub-Releases** selbst aktualisieren (öffentliches oder privates Repository).
 
-**Einrichtung:** Standardmässig ist `VylarisGroup/vylaris-ads` voreingestellt (`integrations.update.repo`). Repository (`besitzer/name`) und – bei privaten Repositories – ein Token im Installer oder unter *Administration → Updates* eintragen. Empfohlen ist ein Fine-grained Token mit nur *Contents: Read-only* auf dieses eine Repository; es wird mit `app.secret` verschlüsselt in der Datenbank abgelegt.
+**Quelle:** Das Release-Repository ist fest im Programm hinterlegt (`Updater::DEFAULT_REPO` = `VylarisGroup/vylaris-ads`) und lässt sich weder in der Weboberfläche noch in `config/config.php` ändern – Administratoren sehen die Quelle nur. Ist das Repository privat, hinterlegt der Betreiber in `config/config.php` ein Lesetoken (`integrations.update.token`).
 
 **Veröffentlichen einer neuen Version:**
 1. Im Repository liegt der Projektstamm (Ordner `app/`, `public/`, `database/` …); `.gitignore` ist enthalten (keine `config.php`, kein `storage/`).
@@ -216,7 +216,7 @@ Sämtliche Zahlungen laufen ausschliesslich über den Plattformbetreiber: Der We
 
 * **Backup:** Datenbank (`mysqldump`) und `storage/banners/` sichern.
 * **Logs:** `storage/logs/php-error.log`.
-* **Updates:** Dateien ersetzen, `config/config.php` und `storage/` behalten. Schemaänderungen spielt die Anwendung beim ersten Aufruf automatisch und idempotent ein (`Installer::migrate()`, Schemaversion in der Tabelle `settings`; aktuell 3 = DSGVO und Doppelrolle `both`; Lizenzzustand liegt in `settings`). Für ein Upgrade von 1.x: Dateien ersetzen, `integrations.licence.public_key` und `licence_provider => 'TrsLicence'` aus `config.example.php` übernehmen und den Lizenzschlüssel unter *Administration → Lizenz* eintragen – bis dahin läuft die Anwendung im Lesemodus.
+* **Updates:** Dateien ersetzen, `config/config.php` und `storage/` behalten. Schemaänderungen spielt die Anwendung beim ersten Aufruf automatisch und idempotent ein (`Installer::migrate()`, Schemaversion in der Tabelle `settings`; aktuell 3 = DSGVO und Doppelrolle `both`; Lizenzzustand liegt in `settings`). Für ein Upgrade von 1.x: Dateien ersetzen und den Lizenzschlüssel unter *Administration → Lizenz* eintragen – bis dahin läuft die Anwendung im Lesemodus. Alte Einträge `integrations.licence*` und `licence_provider` in `config/config.php` werden ignoriert und können entfernt werden.
 * **Neuinstallation:** `storage/installed.lock` löschen und `install.php` erneut bereitstellen (nur in leerer Datenbank).
 
 ## Einbindung auf der Webseite des Betreibers
@@ -245,15 +245,16 @@ tests/e2e.php      End-to-End-Test
 Der Test läuft über HTTP gegen eine **frisch installierte Test-Datenbank** (er legt Daten an und verändert sie direkt):
 
 ```bash
-# config.php: integrations.licence.endpoint = http://127.0.0.1:8081 und public_key = Ausgabe von `php tests/fake_licence.php pem`
+# Tests lenken Lizenz- und Update-Prüfung nur per PHP-Ini auf die Simulatoren um (nicht per config.php):
+O="-d auto_prepend_file=$PWD/tests/dev_overrides.php"
 php bin/install.php --admin-email=admin@example.com --admin-name=Admin --admin-password='AdminPass123!' --licence-key=VA-TEST-0001-AAAA
 php -S 127.0.0.1:8081 tests/fake_licence.php &     # Lizenzserver-Simulator (Steuerdatei: <tmp>/fakelic.json, Key mit features ["*"] vorab anlegen)
-php -S 127.0.0.1:8082 tests/fake_github.php &      # GitHub-Simulator; config: integrations.update.api_base = http://127.0.0.1:8082
-php -S 127.0.0.1:8080 -t public &
-php tests/e2e.php http://127.0.0.1:8080 admin@example.com 'AdminPass123!'
+php $O -S 127.0.0.1:8082 tests/fake_github.php &    # GitHub-Simulator
+php $O -S 127.0.0.1:8080 -t public &
+php $O tests/e2e.php http://127.0.0.1:8080 admin@example.com 'AdminPass123!'
 ```
 
-Geprüft werden u. a.: Registrierung und Rollenschutz, CSRF und Berechtigungen, Freigabe-Workflow, Upload-Angriffe (getarnter PHP-Code, Polyglott-Dateien, angehängter Code), serverseitige Preisberechnung trotz manipulierter Formularfelder, Doppelbuchungsschutz inklusive paralleler Annahme, manuelle Zahlung, Provision, Finanzjournal, Auszahlungsregeln, Erstattung, Sperren und Login-Drosselung sowie ein Smoke-Test aller Seiten auf PHP-Warnungen. Für den Datenschutz: Rechtstexte und Escaping eigener Texte, Zustimmungsnachweis, Export (Passwortpflicht, keine Fremddaten, kein Hash), vollständige Löschung samt Banner-Dateien, Blockierung bei laufender Buchung/Guthaben, Sperrung mit Aufbewahrungsfrist, Anonymisierung nach Fristablauf bei unveränderten Finanzdaten, Löschung durch Administratoren, IP-Bereinigung und Schema-Migration. Für Updates: Token-Verschlüsselung, Release-Prüfung (Tag, Version, Syntax), Zip-Slip/Strukturangriffe, Austausch mit Wartungsmodus, Rollback byte-identisch. Für die Lizenz: Aktivierung, Scope-Durchsetzung (Route und Aktion, Wildcards), Sperre/Ablauf/falsches Produkt/Gerätelimit, Lesemodus, abgelehnte Serverantworten (Signatur, veralteter Zeitstempel, manipulierte Datenbank), Offline-Lizenz bei Serverausfall und deren Ablauf, Abmelden/Wiederaktivieren.
+Geprüft werden u. a.: Registrierung und Rollenschutz, CSRF und Berechtigungen, Freigabe-Workflow, Upload-Angriffe (getarnter PHP-Code, Polyglott-Dateien, angehängter Code), serverseitige Preisberechnung trotz manipulierter Formularfelder, Doppelbuchungsschutz inklusive paralleler Annahme, manuelle Zahlung, Provision, Finanzjournal, Auszahlungsregeln, Erstattung, Sperren und Login-Drosselung sowie ein Smoke-Test aller Seiten auf PHP-Warnungen. Für den Datenschutz: Rechtstexte und Escaping eigener Texte, Zustimmungsnachweis, Export (Passwortpflicht, keine Fremddaten, kein Hash), vollständige Löschung samt Banner-Dateien, Blockierung bei laufender Buchung/Guthaben, Sperrung mit Aufbewahrungsfrist, Anonymisierung nach Fristablauf bei unveränderten Finanzdaten, Löschung durch Administratoren, IP-Bereinigung und Schema-Migration. Für Updates: feste Update-Quelle (nicht per Oberfläche änderbar), Release-Prüfung (Tag, Version, Syntax), Zip-Slip/Strukturangriffe, Austausch mit Wartungsmodus, Rollback byte-identisch. Für die Lizenz: Aktivierung, Scope-Durchsetzung (Route und Aktion, Wildcards), Sperre/Ablauf/falsches Produkt/Gerätelimit, Lesemodus, abgelehnte Serverantworten (Signatur, veralteter Zeitstempel, manipulierte Datenbank), Offline-Lizenz bei Serverausfall und deren Ablauf, Abmelden/Wiederaktivieren.
 
 ## Erweiterbarkeit
 
@@ -270,7 +271,7 @@ Der MVP ist bewusst auf Festpreise und manuelle Zahlung beschränkt; die folgend
 
 Die Anwendung hat keine Abhängigkeit zu weiteren VylarisGroup-Diensten ausser der Lizenzprüfung. Vorbereitet sind:
 
-1. **Lizenzprüfung:** siehe Abschnitt „Lizenz und Berechtigungs-Scopes“. Über das Interface `LicenceProvider` lässt sich ein anderer Anbieter einhängen (Klassenname in `integrations.licence_provider`, Datei über `integrations.listeners_file` laden).
+1. **Lizenzprüfung:** siehe Abschnitt „Lizenz und Berechtigungs-Scopes“ (fest verdrahtet, nicht konfigurierbar).
 2. **Benutzer-Verknüpfung / SSO:** `users.external_source` und `users.external_id` (eindeutig kombiniert) nehmen die ID eines Kontos im Ökosystem auf. Ein SSO-Login legt dort an bzw. sucht und ruft `login_user()` auf – die bestehende Anmeldung bleibt unverändert.
 3. **Ereignisse:** Über `Hooks` lassen sich Buchungen, Zahlungen und Registrierungen an andere VylarisGroup-Dienste melden.
 

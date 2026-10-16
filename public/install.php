@@ -26,7 +26,7 @@ $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' :
 $guessUrl = $scheme . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? '/'), '/\\');
 $f = [
     'db_host' => 'localhost', 'db_port' => '3306', 'db_name' => '', 'db_user' => '', 'app_url' => $guessUrl,
-    'timezone' => 'Europe/Zurich', 'admin_name' => '', 'admin_email' => '', 'update_repo' => '', 'licence_key' => '', 'licence_endpoint' => 'https://licence.vylaris.ch',
+    'timezone' => 'Europe/Zurich', 'admin_name' => '', 'admin_email' => '', 'licence_key' => '',
 ];
 
 if (!$locked && $_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -46,12 +46,7 @@ if (!$locked && $_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!filter_var($f['app_url'], FILTER_VALIDATE_URL)) $errors[] = 'Bitte eine gültige Basis-URL angeben.';
         if (!in_array($f['timezone'], timezone_identifiers_list(), true)) $errors[] = 'Ungültige Zeitzone.';
         if ((string) ($_POST['admin_password'] ?? '') !== (string) ($_POST['admin_password2'] ?? '')) $errors[] = 'Die Administrator-Passwörter stimmen nicht überein.';
-        $pub = trim((string) ($_POST['licence_public_key'] ?? ''));
-        if (!$hasConfig && $pub !== '' && !Installer::validPublicKey($pub)) $errors[] = 'Der öffentliche Lizenzschlüssel ist kein gültiger Ed25519-Schlüssel (PEM).';
         if ($f['licence_key'] !== '' && !preg_match('/^[A-Za-z0-9][A-Za-z0-9-]{4,63}$/', $f['licence_key'])) $errors[] = 'Der Lizenzschlüssel hat ein ungültiges Format.';
-        $updToken = trim((string) ($_POST['update_token'] ?? ''));
-        if ($f['update_repo'] !== '' && !preg_match('#^[A-Za-z0-9_.-]{1,100}/[A-Za-z0-9_.-]{1,100}$#', $f['update_repo'])) $errors[] = 'Das GitHub-Repository muss das Format "besitzer/name" haben.';
-        if ($updToken !== '' && !preg_match('/^[A-Za-z0-9_\-]{20,255}$/', $updToken)) $errors[] = 'Das GitHub-Token hat ein ungültiges Format.';
         if (!$errors) {
             try {
                 $pdo = Installer::connect($db);
@@ -61,11 +56,9 @@ if (!$locked && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 Installer::runSchema($pdo);
                 Installer::createAdmin($pdo, $f['admin_name'], $f['admin_email'], (string) ($_POST['admin_password'] ?? ''));
                 if (!$hasConfig) {
-                    Installer::writeConfig($db, $f['app_url'], $f['timezone'], ['public_key' => $pub, 'endpoint' => $f['licence_endpoint']]);
+                    Installer::writeConfig($db, $f['app_url'], $f['timezone']);
                 }
                 Installer::saveLicenceKey($pdo, $f['licence_key']);
-                $secret = (string) (($hasConfig ? ($existing['app']['secret'] ?? '') : (require $appRoot . '/config/config.php')['app']['secret']));
-                Installer::saveUpdateSource($pdo, $f['update_repo'], $updToken, $secret);
                 Installer::lock();
                 $done = true;
                 $_SESSION = [];
@@ -134,16 +127,6 @@ if (!$locked && $_SERVER['REQUEST_METHOD'] === 'POST') {
       <p class="text-sm text-slate-600">VylarisAdvertise ist lizenzpflichtig. Ohne Lizenz läuft die Anwendung nur im Lesemodus; der Schlüssel kann später unter <em>Administration → Lizenz</em> eingetragen werden.</p>
       <div class="grid gap-4">
         <div><label class="label">Lizenzschlüssel</label><input class="input font-mono" name="licence_key" value="<?= $h($f['licence_key']) ?>" maxlength="64" autocomplete="off" placeholder="VA-XXXX-XXXX-XXXX"></div>
-        <?php if (!$hasConfig): ?>
-        <div><label class="label">Lizenzserver</label><input class="input" name="licence_endpoint" value="<?= $h($f['licence_endpoint']) ?>"></div>
-        <div><label class="label">Öffentlicher Lizenzschlüssel (PEM; leer lassen = Standard-Schlüssel von licence.vylaris.ch)</label><textarea class="input font-mono text-xs" name="licence_public_key" rows="4" placeholder="-----BEGIN PUBLIC KEY-----"></textarea></div>
-        <?php endif; ?>
-      </div>
-      <h2 class="font-semibold">6. Updates (optional)</h2>
-      <p class="text-sm text-slate-600">Aktualisierung aus GitHub-Releases. Kann auch später unter <em>Administration → Updates</em> eingerichtet werden.</p>
-      <div class="grid gap-4 sm:grid-cols-2">
-        <div><label class="label">GitHub-Repository (besitzer/name)</label><input class="input font-mono" name="update_repo" value="<?= $h($f['update_repo']) ?>" maxlength="201" autocomplete="off"></div>
-        <div><label class="label">Zugriffstoken (nur bei privatem Repository)</label><input class="input font-mono" type="password" name="update_token" maxlength="255" autocomplete="new-password"></div>
       </div>
       <button class="btn-primary" <?= $reqOk ? '' : 'disabled' ?>><i class="bx bx-rocket"></i> Installieren</button>
     </form>

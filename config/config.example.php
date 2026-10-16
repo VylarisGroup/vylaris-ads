@@ -42,20 +42,11 @@ return [
     ],
     // Optionale Integrationen (VylarisGroup-Ökosystem). Ohne Eintrag läuft alles eigenständig.
     'integrations' => [
-        // Lizenzprüfung gegen TRS License (Pflicht). Der Lizenzschlüssel wird im Installer bzw. unter Administration → Lizenz eingetragen.
-        'licence_provider' => 'TrsLicence',
-        'licence'          => [
-            'endpoint'   => 'https://licence.vylaris.ch',
-            'product'    => 'vylaris-advertise',   // Produktkennung auf dem Lizenzserver
-            // Öffentlicher Ed25519-Schlüssel (Lizenz-Panel → Einstellungen). Bewusst hier fest hinterlegt, nicht vom Server geladen.
-            'public_key' => "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAhV7L176abx5a05XciRbOOeFj6wkCnNiDrwEXw7KceiU=\n-----END PUBLIC KEY-----\n",
-            // Webseiten pro Betreiber, wenn die Lizenz den Scope "multi_site" nicht enthält
-            'free_sites' => 1,
-        ],
-        // Selbst-Update aus GitHub-Releases (Einrichtung auch unter Administration → Updates)
+        // Lizenzprüfung (TRS License): Server, Produkt und öffentlicher Schlüssel sind fest im Programm hinterlegt und nicht konfigurierbar.
+        // Selbst-Update aus GitHub-Releases (Administration → Updates). Die Update-Quelle (Repository) ist fest im Programm hinterlegt
+        // und nicht konfigurierbar.
         'update' => [
-            'repo'        => 'VylarisGroup/vylaris-ads',  // Update-Quelle (GitHub-Releases); Token für private Repos wird verschlüsselt in der Datenbank abgelegt
-            'api_base'    => 'https://api.github.com',
+            'token'       => '',                          // nur falls das Release-Repository privat ist: Token mit Lesezugriff (Contents: read)
             'check_hours' => 24,                          // automatische Prüfung (nur Hinweis, keine Installation)
             'webroot'     => null,                        // Verzeichnis, aus dem der Webserver ausliefert (Standard: public/ der Anwendung)
         ],

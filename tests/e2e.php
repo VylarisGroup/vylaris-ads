@@ -770,16 +770,13 @@ $release = function (string $version, ?callable $mut = null) use ($tmp): string 
 };
 $upd = fn () => $admin->get('admin.update');
 $cur = APP_VERSION; $hash0 = $treeHash(); $cfgHash0 = md5_file(APP_ROOT . '/config/config.php');
-$tok = 'github_pat_' . str_repeat('A1b2', 8);
+$tok = 'github_pat_' . str_repeat('A1b2', 8); // steht in config.php (Testumgebung)
 
-$admin->get('admin.update'); check($admin->code === 200 && $admin->has('GitHub-Repository'), 'Update-Seite für Administratoren erreichbar');
+$admin->get('admin.update'); check($admin->code === 200 && $admin->has('Update-Quelle') && $admin->has('VylarisGroup/vylaris-ads'), 'Update-Seite zeigt die feste Update-Quelle');
+check(!$admin->has('name="repo"') && !$admin->has('name="token"'), 'Update-Seite hat keine Eingabefelder für Repository oder Token');
 $adv->get('admin.update'); check($adv->code === 403, 'Update-Seite nur für Administratoren');
-$admin->post('admin.update', ['action' => 'save', 'repo' => 'kein repo!', 'auto' => '1']); check($admin->has('Format'), 'Ungültiges Repository-Format wird abgelehnt');
-$admin->post('admin.update', ['action' => 'save', 'repo' => 'acme/vylaris-advertise', 'token' => $tok, 'auto' => '1']);
-check(val("SELECT value FROM settings WHERE name = 'update_repo'") === 'acme/vylaris-advertise', 'Repository gespeichert');
-$sealed = (string) val("SELECT value FROM settings WHERE name = 'update_token'");
-check(str_starts_with($sealed, 's1:') && !str_contains($sealed, $tok), 'Token wird verschlüsselt gespeichert');
-$admin->get('admin.update'); check(!$admin->has($tok) && $admin->has('gespeichert'), 'Token wird nie im Klartext angezeigt');
+$admin->post('admin.update', ['action' => 'save', 'repo' => 'evil/repo', 'token' => $tok, 'auto' => '1']);
+check(Updater::repo() === 'VylarisGroup/vylaris-ads' && (string) val("SELECT COUNT(*) FROM settings WHERE name IN ('update_repo', 'update_token')") === '0', 'Per POST mitgeschickte Quelle/Token werden ignoriert, nichts gespeichert');
 
 // Prüfung: Token nötig, Version vergleichen
 $gh(['tag' => 'v9.9.9', 'token' => 'falsches-token', 'zip' => '']);
@@ -841,6 +838,28 @@ check($treeHash() === $hash0, 'Nach dem Rollback sind alle Programmdateien byte-
 check(!is_file(APP_ROOT . '/app/UPDATE_MARKER.txt') && is_file(APP_ROOT . '/docs/DSGVO.md'), 'Rollback entfernt neue und stellt gelöschte Dateien wieder her');
 $admin->post('admin.update', ['action' => 'rollback', 'file' => '../../etc/passwd']); check($admin->has('Unbekannte Sicherung'), 'Rollback akzeptiert nur vorhandene Sicherungen');
 @array_map('unlink', glob(APP_ROOT . '/storage/backups/vylaris-advertise-*.zip'));
+
+echo "\n== Feste Lizenz- und Update-Quelle ==\n";
+$cfgFile = APP_ROOT . '/config/config.php';
+$cfgBackup = file_get_contents($cfgFile);
+$cfgArr = require $cfgFile;
+$cfgArr['integrations']['licence_provider'] = 'NullLicence';
+$cfgArr['integrations']['licence'] = ['endpoint' => 'https://evil.example', 'public_key' => 'x', 'product' => 'x', 'free_sites' => 99];
+$cfgArr['integrations']['update'] = array_merge($cfgArr['integrations']['update'] ?? [], ['repo' => 'evil/repo', 'api_base' => 'https://evil.example']);
+$evil = "<?php\nreturn " . var_export($cfgArr, true) . ";\n";
+file_put_contents($cfgFile, $evil);
+$probe = 'require "' . APP_ROOT . '/app/bootstrap.php"; echo json_encode([licence()->endpoint(), licence()->product(), md5(licence()->publicKey()), Updater::repo(), Updater::apiBase(), licence()->freeSites(), get_class(licence())]);';
+$out = json_decode((string) shell_exec('php -r ' . escapeshellarg($probe) . ' 2>&1'), true); // bewusst OHNE auto_prepend_file
+file_put_contents($cfgFile, $cfgBackup);
+$userKey = "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAhV7L176abx5a05XciRbOOeFj6wkCnNiDrwEXw7KceiU=\n-----END PUBLIC KEY-----\n";
+check(is_array($out) && $out[0] === 'https://licence.vylaris.ch' && $out[1] === 'vylaris-advertise', 'Lizenzserver und Produkt lassen sich über config.php nicht ändern');
+check(is_array($out) && $out[2] === md5($userKey), 'Es gilt automatisch der vorgegebene öffentliche Schlüssel (config.php wirkungslos)');
+check(is_array($out) && $out[3] === 'VylarisGroup/vylaris-ads' && $out[4] === 'https://api.github.com', 'Update-Quelle lässt sich über config.php nicht ändern');
+check(is_array($out) && $out[5] === 1 && $out[6] === 'TrsLicence', 'Kein alternativer Lizenzanbieter über config.php einhängbar');
+check(Updater::repo() === 'VylarisGroup/vylaris-ads' && !str_contains((string) file_get_contents(APP_ROOT . '/app/views/admin/licence.php'), 'name="endpoint"') && !str_contains((string) file_get_contents(APP_ROOT . '/app/views/admin/licence.php'), 'public_key'), 'Weboberfläche bietet keine Felder für Lizenzserver oder Schlüssel');
+$admin->get('admin.licence')->post('admin.licence', ['action' => 'save', 'licence_key' => 'VA-TEST-0001-AAAA', 'endpoint' => 'https://evil.example', 'public_key' => 'x', 'product' => 'x']);
+check(licence()->endpoint() === 'http://127.0.0.1:8081' && !str_contains((string) val("SELECT GROUP_CONCAT(name) FROM settings"), 'licence_endpoint'), 'Per POST mitgeschickte Lizenzserver-Angaben werden ignoriert');
+check(PHP_VERSION_ID > 0 && str_contains((string) file_get_contents(APP_ROOT . '/app/lib/Licence.php'), 'MCowBQYDK2VwAyEAhV7L176abx5a05XciRbOOeFj6wkCnNiDrwEXw7KceiU='), 'Öffentlicher Schlüssel ist im Programm hinterlegt');
 
 echo "\nErgebnis: $passed bestanden, $failed fehlgeschlagen\n";
 array_map('unlink', glob("$tmp/*") ?: []);

@@ -138,16 +138,13 @@ final class Installer
             ->execute([$email, password_hash($password, PASSWORD_DEFAULT), trim($name)]);
     }
 
-    public static function writeConfig(array $db, string $url, string $timezone, array $licence = []): void
+    public static function writeConfig(array $db, string $url, string $timezone): void
     {
         $config = require self::root() . '/config/config.example.php';
         $config['app']['url'] = rtrim($url, '/');
         $config['app']['timezone'] = $timezone;
         $config['app']['secret'] = bin2hex(random_bytes(32));
         $config['db'] = array_merge($config['db'], $db);
-        foreach (['endpoint', 'public_key', 'product'] as $k) {
-            if (!empty($licence[$k])) $config['integrations']['licence'][$k] = (string) $licence[$k];
-        }
         $php = "<?php\n// Automatisch erzeugt vom Installer am " . date('Y-m-d H:i') . ". Siehe config.example.php für Erläuterungen.\nreturn "
             . var_export($config, true) . ";\n";
         $file = self::root() . '/config/config.php';
@@ -155,24 +152,6 @@ final class Installer
             throw new RuntimeException('config/config.php konnte nicht geschrieben werden.');
         }
         @chmod($file, 0640);
-    }
-
-    /** Verschlüsselt ein Geheimnis (z. B. GitHub-Token) für die Ablage in der Datenbank; Schlüssel aus app.secret. */
-    public static function sealSecret(string $plain, string $secret): string
-    {
-        $key = hash('sha256', 'vyad-seal|' . $secret, true);
-        $nonce = random_bytes(SODIUM_CRYPTO_SECRETBOX_NONCEBYTES);
-        return 's1:' . base64_encode($nonce . sodium_crypto_secretbox($plain, $nonce, $key));
-    }
-
-    public static function openSecret(string $sealed, string $secret): string
-    {
-        if (!str_starts_with($sealed, 's1:')) return '';
-        $raw = base64_decode(substr($sealed, 3), true);
-        if ($raw === false || strlen($raw) <= SODIUM_CRYPTO_SECRETBOX_NONCEBYTES) return '';
-        $key = hash('sha256', 'vyad-seal|' . $secret, true);
-        $plain = sodium_crypto_secretbox_open(substr($raw, SODIUM_CRYPTO_SECRETBOX_NONCEBYTES), substr($raw, 0, SODIUM_CRYPTO_SECRETBOX_NONCEBYTES), $key);
-        return $plain === false ? '' : $plain;
     }
 
     /** Speichert den Lizenzschlüssel (Prüfung erfolgt beim ersten Aufruf bzw. unter Administration → Lizenz). */
@@ -184,28 +163,6 @@ final class Installer
             throw new RuntimeException('Der Lizenzschlüssel hat ein ungültiges Format.');
         }
         $pdo->prepare('INSERT INTO settings (name, value) VALUES (?, ?) ON DUPLICATE KEY UPDATE value = VALUES(value)')->execute(['licence_key', $key]);
-    }
-
-    /** Speichert Update-Repository und (verschlüsselt) das optionale Token. */
-    public static function saveUpdateSource(PDO $pdo, string $repo, string $token, string $secret): void
-    {
-        $repo = trim($repo);
-        if ($repo === '') return;
-        if (!preg_match('#^[A-Za-z0-9_.-]{1,100}/[A-Za-z0-9_.-]{1,100}$#', $repo)) throw new RuntimeException('Das GitHub-Repository muss das Format "besitzer/name" haben.');
-        $st = $pdo->prepare('INSERT INTO settings (name, value) VALUES (?, ?) ON DUPLICATE KEY UPDATE value = VALUES(value)');
-        $st->execute(['update_repo', $repo]);
-        $token = trim($token);
-        if ($token !== '') {
-            if (!preg_match('/^[A-Za-z0-9_\-]{20,255}$/', $token)) throw new RuntimeException('Das GitHub-Token hat ein ungültiges Format.');
-            $st->execute(['update_token', self::sealSecret($token, $secret)]);
-        }
-    }
-
-    /** Prüft, ob ein öffentlicher Ed25519-Schlüssel (PEM) gültig ist. */
-    public static function validPublicKey(string $pem): bool
-    {
-        $der = base64_decode(preg_replace('/-----[^-]+-----|\s+/', '', $pem), true);
-        return $der !== false && strlen($der) === 44 && str_starts_with($der, hex2bin('302a300506032b6570032100'));
     }
 
     public static function lock(): void

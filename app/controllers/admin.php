@@ -351,9 +351,9 @@ function admin_update(): void
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         switch (input('action')) {
             case 'save':
-                Updater::saveSettings(input('repo'), (string) ($_POST['token'] ?? ''), !empty($_POST['remove_token']));
+                // Die Update-Quelle (Repository/Token) ist bewusst nicht änderbar – sie steht fest im Code bzw. in config/config.php.
                 set_setting('update_auto', !empty($_POST['auto']) ? '1' : '0');
-                audit('update.settings', 'system', null, ['repo' => input('repo')]);
+                audit('update.settings', 'system', null, ['auto' => !empty($_POST['auto'])]);
                 flash('success', 'Update-Einstellungen gespeichert.');
                 break;
             case 'check':

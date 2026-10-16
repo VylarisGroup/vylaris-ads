@@ -26,10 +26,12 @@ final class Updater
 
     // ----- Konfiguration -------------------------------------------------------------------------------------
 
+    /** Update-Quelle (Release-Repository): fest im Code, weder über die Weboberfläche noch über config/config.php änderbar. */
+    public const DEFAULT_REPO = 'VylarisGroup/vylaris-ads';
+
     public static function repo(): string
     {
-        $r = trim(setting('update_repo'));
-        return $r !== '' ? $r : trim((string) config('integrations.update.repo', ''));
+        return defined('VYAD_UPDATE_REPO') ? (string) VYAD_UPDATE_REPO : self::DEFAULT_REPO;
     }
 
     public static function validRepo(string $repo): bool
@@ -39,7 +41,7 @@ final class Updater
 
     public static function configured(): bool { return self::validRepo(self::repo()); }
 
-    public static function apiBase(): string { return rtrim((string) config('integrations.update.api_base', 'https://api.github.com'), '/'); }
+    public static function apiBase(): string { return rtrim(defined('VYAD_UPDATE_API_BASE') ? (string) VYAD_UPDATE_API_BASE : 'https://api.github.com', '/'); }
 
     /** Verzeichnis, aus dem der Webserver ausliefert (Standard: public/ der Anwendung). */
     public static function webroot(): string
@@ -48,26 +50,10 @@ final class Updater
         return rtrim($w !== '' ? $w : APP_ROOT . '/public', '/\\');
     }
 
+    /** Optionales Lesetoken für private Repositories – nur aus config/config.php (integrations.update.token). */
     public static function token(): string
     {
-        $v = setting('update_token');
-        return $v === '' ? '' : Installer::openSecret($v, (string) config('app.secret'));
-    }
-
-    public static function saveSettings(string $repo, ?string $token, bool $removeToken): void
-    {
-        if ($repo !== '' && !self::validRepo($repo)) throw new UserError('Bitte das Repository im Format "besitzer/name" angeben.');
-        set_setting('update_repo', $repo);
-        if ($removeToken) {
-            set_setting('update_token', '');
-        } elseif ($token !== null && $token !== '') {
-            if (!preg_match('/^[A-Za-z0-9_\-]{20,255}$/', $token)) throw new UserError('Das Token hat ein ungültiges Format.');
-            set_setting('update_token', Installer::sealSecret($token, (string) config('app.secret')));
-        }
-        $st = self::state();
-        unset($st['latest'], $st['error']);
-        $st['next_check'] = 0;
-        self::saveState($st);
+        return trim((string) config('integrations.update.token', ''));
     }
 
     // ----- Status --------------------------------------------------------------------------------------------

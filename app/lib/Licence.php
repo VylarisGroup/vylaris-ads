@@ -6,7 +6,7 @@ declare(strict_types=1);
  *
  * Ablauf: Schlüssel im Admin-Bereich (oder Installer) eintragen → Gerät wird automatisch aktiviert →
  * alle ~15 Minuten Heartbeat (bei Seitenaufrufen und per bin/cron.php). Jede Serverantwort ist mit Ed25519
- * signiert und wird gegen den fest in config/config.php hinterlegten öffentlichen Schlüssel geprüft.
+ * signiert und wird gegen den fest im Programm hinterlegten öffentlichen Schlüssel geprüft.
  * Zusätzlich wird eine signierte Offline-Lizenz abgelegt: Ist der Server nicht erreichbar, läuft die Anwendung
  * damit bis zu deren Ablauf weiter. Eine definitive Ablehnung (gesperrt, abgelaufen …) wirkt sofort.
  *
@@ -60,15 +60,26 @@ final class TrsLicence implements LicenceProvider
 
     private ?array $eval = null;
 
-    public function __construct(private array $cfg = [])
+    /**
+     * Lizenzserver, Produkt und öffentlicher Schlüssel sind fest im Code hinterlegt und weder über die Weboberfläche
+     * noch über config/config.php änderbar. (Nur für Tests: die Konstanten VYAD_LICENCE_ENDPOINT / VYAD_LICENCE_PUBLIC_KEY
+     * können per PHP-Ini auto_prepend_file gesetzt werden, siehe tests/dev_overrides.php.)
+     */
+    public const ENDPOINT = 'https://licence.vylaris.ch';
+    public const PRODUCT = 'vylaris-advertise';
+    public const PUBLIC_KEY = "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAhV7L176abx5a05XciRbOOeFj6wkCnNiDrwEXw7KceiU=\n-----END PUBLIC KEY-----\n";
+    public const FREE_SITES = 1; // Webseiten pro Betreiber ohne Scope "multi_site"
+
+    public function __construct(array $ignored = [])
     {
     }
 
     // ----- Konfiguration -------------------------------------------------------------------------------------
 
-    public function endpoint(): string { return rtrim((string) ($this->cfg['endpoint'] ?? 'https://licence.vylaris.ch'), '/'); }
-    public function product(): string { return (string) ($this->cfg['product'] ?? 'vylaris-advertise'); }
-    public function freeSites(): int { return max(1, (int) ($this->cfg['free_sites'] ?? 1)); }
+    public function endpoint(): string { return rtrim(defined('VYAD_LICENCE_ENDPOINT') ? (string) VYAD_LICENCE_ENDPOINT : self::ENDPOINT, '/'); }
+    public function product(): string { return self::PRODUCT; }
+    public function freeSites(): int { return self::FREE_SITES; }
+    public function publicKey(): string { return defined('VYAD_LICENCE_PUBLIC_KEY') ? (string) VYAD_LICENCE_PUBLIC_KEY : self::PUBLIC_KEY; }
     public function key(): string { return trim(setting('licence_key')); }
 
     /** Stabile Geräte-ID dieser Installation (aus dem geheimen Schlüssel der Konfiguration abgeleitet). */
@@ -302,7 +313,7 @@ final class TrsLicence implements LicenceProvider
     /** Roher 32-Byte-Ed25519-Schlüssel aus dem PEM in der Konfiguration. */
     private function pubKey(): ?string
     {
-        $pem = (string) ($this->cfg['public_key'] ?? '');
+        $pem = $this->publicKey();
         if ($pem === '' || !function_exists('sodium_crypto_sign_verify_detached')) return null;
         $der = base64_decode(preg_replace('/-----[^-]+-----|\s+/', '', $pem), true);
         // SubjectPublicKeyInfo für Ed25519: 12 Byte Präfix + 32 Byte Schlüssel
@@ -339,13 +350,7 @@ final class TrsLicence implements LicenceProvider
 function licence(): LicenceProvider
 {
     static $provider = null;
-    if ($provider === null) {
-        $class = (string) config('integrations.licence_provider', 'TrsLicence');
-        $cfg = (array) config('integrations.licence', []);
-        $provider = ($class !== 'TrsLicence' && class_exists($class) && is_subclass_of($class, LicenceProvider::class))
-            ? new $class($cfg) : new TrsLicence($cfg);
-    }
-    return $provider;
+    return $provider ??= new TrsLicence();
 }
 
 /** Bricht mit Fehlermeldung ab, wenn der Scope nicht freigeschaltet ist (für Prüfungen innerhalb von Aktionen). */
