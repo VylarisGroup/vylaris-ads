@@ -16,6 +16,8 @@ return [
 
     'login'                  => ['auth',       'auth_login',            ['GET', 'POST'], 'guest'],
     'register'               => ['auth',       'auth_register',         ['GET', 'POST'], 'guest'],
+    'verify'                 => ['auth',       'auth_verify',           ['GET'],         'public'],
+    'verify.resend'          => ['auth',       'auth_verify_resend',    ['GET', 'POST'], 'guest'],
     'logout'                 => ['auth',       'auth_logout',           ['POST'],        'auth'],
     'account'                => ['auth',       'auth_account',          ['GET', 'POST'], 'auth'],
 
@@ -71,6 +73,7 @@ return [
     'admin.licence'          => ['admin',      'admin_licence',         ['GET', 'POST'], 'admin'],
     'admin.update'           => ['admin',      'admin_update',          ['GET', 'POST'], 'admin'],
     'admin.changelog'        => ['admin',      'admin_changelog',       ['GET', 'POST'], 'admin'],
+    'admin.mail'             => ['admin',      'admin_mail',            ['GET', 'POST'], 'admin'],
     'admin.audit'            => ['admin',      'admin_audit',           ['GET'],         'admin', 'audit.view'],
 
     // Einbindung beim Betreiber (öffentlich, ohne Sitzung/Cookies)

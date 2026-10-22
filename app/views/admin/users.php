@@ -10,7 +10,7 @@
   <tbody>
   <?php foreach ($result['rows'] as $u): $self = (int) $u['id'] === uid(); ?>
     <tr class="align-top">
-      <td><p class="font-medium text-slate-900"><?= e($u['name']) ?> <?= $self ? '<span class="text-xs text-slate-400">(Sie)</span>' : '' ?></p><p class="text-xs text-slate-500"><?= e($u['email']) ?><?= $u['company'] ? ' · ' . e($u['company']) : '' ?></p><p class="text-xs text-slate-400">seit <?= fdate($u['created_at']) ?><?php if ($u['status'] === 'deleted'): ?> · gelöscht <?= fdate($u['deleted_at']) ?><?= $u['anonymize_after'] ? ', Anonymisierung ab ' . fdate($u['anonymize_after']) : '' ?><?php endif; ?></p></td>
+      <td><p class="font-medium text-slate-900"><?= e($u['name']) ?> <?= $self ? '<span class="text-xs text-slate-400">(Sie)</span>' : '' ?></p><p class="text-xs text-slate-500"><?= e($u['email']) ?><?= $u['company'] ? ' · ' . e($u['company']) : '' ?></p><?php if (!$u['email_verified_at'] && $u['status'] !== 'deleted'): ?><p class="mt-1"><span class="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">E-Mail unbestätigt</span></p><?php endif; ?><p class="text-xs text-slate-400">seit <?= fdate($u['created_at']) ?><?php if ($u['status'] === 'deleted'): ?> · gelöscht <?= fdate($u['deleted_at']) ?><?= $u['anonymize_after'] ? ', Anonymisierung ab ' . fdate($u['anonymize_after']) : '' ?><?php endif; ?></p></td>
       <td><?= e(ROLE_LABELS[$u['role']]) ?></td>
       <td><?= badge($u['status']) ?></td>
       <td class="text-xs text-slate-600"><?= (int) $u['sites'] ?> Webseiten<br><?= (int) $u['campaigns'] ?> Kampagnen<br><?= (int) $u['bookings'] ?> Buchungen</td>
@@ -25,6 +25,17 @@
             <form method="post" action="<?= url('admin.user') ?>" data-confirm="Status wirklich ändern?"><?= csrf_field() ?><input type="hidden" name="id" value="<?= (int) $u['id'] ?>">
               <input type="hidden" name="action" value="<?= $u['status'] === 'active' ? 'block' : 'unblock' ?>">
               <button class="<?= $u['status'] === 'active' ? 'btn-danger-ghost' : 'btn-secondary' ?> w-full justify-center"><i class="bx <?= $u['status'] === 'active' ? 'bx-block' : 'bx-lock-open' ?>"></i> <?= $u['status'] === 'active' ? 'Sperren' : 'Entsperren' ?></button></form>
+            <?php if (!$u['email_verified_at']): ?>
+            <div class="space-y-2 rounded-lg bg-amber-50 p-2">
+              <p class="text-xs text-amber-900">E-Mail-Adresse noch nicht bestätigt.</p>
+              <form method="post" action="<?= url('admin.user') ?>" data-confirm="Die Adresse <?= e($u['email']) ?> ohne Link als bestätigt markieren?"><?= csrf_field() ?><input type="hidden" name="id" value="<?= (int) $u['id'] ?>"><input type="hidden" name="action" value="verify">
+                <button class="btn-secondary w-full justify-center"><i class="bx bx-check-circle"></i> Manuell bestätigen</button></form>
+              <?php if (Mailer::configured()): ?>
+              <form method="post" action="<?= url('admin.user') ?>"><?= csrf_field() ?><input type="hidden" name="id" value="<?= (int) $u['id'] ?>"><input type="hidden" name="action" value="resend">
+                <button class="btn-secondary w-full justify-center"><i class="bx bx-envelope"></i> Link erneut senden</button></form>
+              <?php endif; ?>
+            </div>
+            <?php endif; ?>
             <?php if ((int) $u['sites'] + (int) $u['campaigns'] + (int) $u['bookings'] === 0 || in_array($u['role'], ['advertiser', 'publisher'], true)): ?>
             <form method="post" action="<?= url('admin.user') ?>" class="flex gap-2"><?= csrf_field() ?><input type="hidden" name="id" value="<?= (int) $u['id'] ?>"><input type="hidden" name="action" value="role">
               <select class="input" name="role"><?php foreach (ROLE_LABELS as $k => $v): ?><option value="<?= $k ?>" <?= $u['role'] === $k ? 'selected' : '' ?>><?= $v ?></option><?php endforeach; ?></select>

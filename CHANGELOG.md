@@ -4,6 +4,19 @@ Alle nennenswerten Änderungen an VylarisAdvertise. Neueste Version zuerst. Admi
 
 Format pro Version: `## [X.Y.Z] - JJJJ-MM-TT`, darunter Abschnitte (`### Neu`, `### Geändert`, `### Behoben`, `### Sicherheit`) mit Stichpunkten.
 
+## [1.8.0] - 2026-10-22
+### Aktion erforderlich
+- **Bitte richten Sie den E-Mail-Versand jetzt im Admin-UI ein:** Administration → System → **E-Mail**. Tragen Sie SMTP-Server, Port, Verschlüsselung, Zugangsdaten und Absender ein und senden Sie eine Test-Mail. Solange das fehlt, erhalten neue Nutzer keinen Bestätigungslink und müssen von Ihnen unter **Benutzer** manuell bestätigt werden.
+### Neu
+- **SMTP-Mailversand:** Einrichtung komplett im Admin-UI (STARTTLS oder SSL/TLS, Serverzertifikat wird immer geprüft). Das Passwort wird verschlüsselt gespeichert. Mails laufen über eine Warteschlange mit automatischen Wiederholungen (bis zu 5 Versuche); Test-Mail, Status und manuelles Zustellen auf derselben Seite.
+- **E-Mail-Bestätigung:** Neue Nutzer müssen ihre Adresse über einen Link bestätigen (48 Stunden gültig, einmal verwendbar), bevor sie sich anmelden können. Bestätigungslink kann erneut angefordert werden.
+- **Benachrichtigungen** zu Buchungsanfragen, Entscheidungen und Freigaben; im Konto abschaltbar.
+- Administratoren sehen unbestätigte Konten in der Benutzerliste und können die Adresse manuell bestätigen oder den Link erneut senden.
+### Geändert
+- Bestehende Konten gelten automatisch als bestätigt. Die Registrierung meldet nicht mehr automatisch an.
+- Eine geänderte E-Mail-Adresse gilt erst nach Bestätigung per Link an die neue Adresse.
+- Zugestellte Mails verlieren ihren Text sofort und werden nach 30 Tagen aus der Liste gelöscht.
+
 ## [1.7.0] - 2026-10-16
 ### Neu
 - **Seitenleiste mit ausklappbaren Menüs:** Die Navigation steht jetzt links und ist nach Aufgaben gruppiert (Werbung, Webseiten bzw. Prüfung, Finanzen, Verwaltung, System). Die Gruppe der aktuellen Seite ist offen, der Zustand der übrigen wird im Browser gemerkt. Auf dem Handy öffnet sich dasselbe Menü über die Menü-Schaltfläche.

@@ -5,7 +5,7 @@ declare(strict_types=1);
 final class Installer
 {
     /** Aktuelle Schemaversion. Neue Versionen werden in migrate() ergänzt und laufen automatisch beim nächsten Aufruf. */
-    public const SCHEMA_VERSION = 3;
+    public const SCHEMA_VERSION = 4;
 
     public static function root(): string
     {
@@ -99,6 +99,54 @@ final class Installer
                 $pdo->exec("ALTER TABLE users MODIFY role ENUM('advertiser','publisher','both','admin') NOT NULL");
                 $v = 3;
             }
+            if ($v < 4) {
+                // 4: E-Mail – Bestätigung der Adresse, Benachrichtigungen, Versand-Warteschlange
+                $firstTime = !self::hasColumn($pdo, 'users', 'email_verified_at');
+                foreach (['email_verified_at' => 'DATETIME NULL', 'notify_email' => 'TINYINT(1) NOT NULL DEFAULT 1'] as $col => $ddl) {
+                    if (!self::hasColumn($pdo, 'users', $col)) {
+                        $pdo->exec("ALTER TABLE users ADD COLUMN $col $ddl");
+                    }
+                }
+                if ($firstTime) {
+                    // Bestehende Konten gelten als bestätigt; die Pflicht gilt nur für neue Registrierungen
+                    $pdo->exec('UPDATE users SET email_verified_at = COALESCE(created_at, NOW()) WHERE email_verified_at IS NULL');
+                }
+                $pdo->exec("CREATE TABLE IF NOT EXISTS email_tokens (
+                    id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                    user_id     INT UNSIGNED NOT NULL,
+                    purpose     ENUM('verify','email_change') NOT NULL,
+                    email       VARCHAR(190) NOT NULL,
+                    token_hash  CHAR(64) NOT NULL,
+                    expires_at  DATETIME NOT NULL,
+                    used_at     DATETIME NULL,
+                    created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE KEY uq_email_token (token_hash),
+                    KEY idx_email_tokens_user (user_id, created_at),
+                    CONSTRAINT fk_email_tokens_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+                $pdo->exec("CREATE TABLE IF NOT EXISTS mail_queue (
+                    id          BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                    user_id     INT UNSIGNED NULL,
+                    to_email    VARCHAR(190) NOT NULL,
+                    to_name     VARCHAR(120) NOT NULL DEFAULT '',
+                    subject     VARCHAR(200) NOT NULL,
+                    body        TEXT NOT NULL,
+                    status      ENUM('pending','sending','sent','failed') NOT NULL DEFAULT 'pending',
+                    attempts    TINYINT UNSIGNED NOT NULL DEFAULT 0,
+                    next_try_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    claimed_at  DATETIME NULL,
+                    last_error  VARCHAR(300) NULL,
+                    created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    sent_at     DATETIME NULL,
+                    KEY idx_mail_due (status, next_try_at),
+                    KEY idx_mail_user (user_id)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+                $ins = $pdo->prepare('INSERT IGNORE INTO settings (name, value) VALUES (?, ?)');
+                foreach (['mail_enabled' => '0', 'mail_host' => '', 'mail_port' => '587', 'mail_secure' => 'starttls', 'mail_user' => '', 'mail_pass' => '', 'mail_from' => '', 'mail_from_name' => ''] as $k => $val) {
+                    $ins->execute([$k, $val]);
+                }
+                $v = 4;
+            }
             $pdo->prepare("INSERT INTO settings (name, value) VALUES ('schema_version', ?) ON DUPLICATE KEY UPDATE value = VALUES(value)")->execute([(string) $v]);
         } finally {
             $pdo->query("SELECT RELEASE_LOCK('vylaris_migrate')")->fetchColumn();
@@ -130,11 +178,11 @@ final class Installer
         $exists = $pdo->prepare('SELECT id FROM users WHERE email = ?');
         $exists->execute([$email]);
         if ($exists->fetchColumn()) {
-            $pdo->prepare("UPDATE users SET role = 'admin', status = 'active', password_hash = ?, name = ? WHERE email = ?")
+            $pdo->prepare("UPDATE users SET role = 'admin', status = 'active', password_hash = ?, name = ?, email_verified_at = COALESCE(email_verified_at, NOW()) WHERE email = ?")
                 ->execute([password_hash($password, PASSWORD_DEFAULT), trim($name), $email]);
             return;
         }
-        $pdo->prepare("INSERT INTO users (email, password_hash, name, role) VALUES (?, ?, ?, 'admin')")
+        $pdo->prepare("INSERT INTO users (email, password_hash, name, role, email_verified_at) VALUES (?, ?, ?, 'admin', NOW())")
             ->execute([$email, password_hash($password, PASSWORD_DEFAULT), trim($name)]);
     }
 

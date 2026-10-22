@@ -189,6 +189,12 @@ Die Anwendung kann sich aus **GitHub-Releases** selbst aktualisieren (öffentlic
 
 **Hinweise:** Voraussetzungen sind PHP-Erweiterungen `zip` und `curl` sowie Schreibrechte auf die Programmverzeichnisse (die Seite zeigt den Status). Liegt das Webroot ausserhalb von `public/`, `integrations.update.webroot` setzen. Vertrauensmodell: HTTPS zu GitHub und Zugriff auf das Repository – wer Releases veröffentlichen kann, kann Code in alle Installationen einspielen; GitHub-Konto per 2FA und Tag-Schutz absichern. Eine zusätzliche Signaturprüfung ist nicht eingebaut.
 
+## E-Mail-Versand und Bestätigung
+
+SMTP wird ausschliesslich im Admin-UI eingerichtet (**Administration → System → E-Mail**; nicht in `config.php`): Server, Port, STARTTLS oder SSL/TLS (Zertifikat wird stets geprüft), Zugangsdaten (Passwort verschlüsselt mit einem aus `app.secret` abgeleiteten Schlüssel), Absender, Test-Mail. Mails laufen über die Tabelle `mail_queue` und werden nach der Antwort an den Browser zugestellt; Fehlversuche werden bis zu 5-mal wiederholt (`bin/cron.php` stellt zusätzlich zu).
+
+Neue Nutzer müssen ihre Adresse über einen Link bestätigen (48 h gültig, einmalig, nur als Hash gespeichert), bevor sie sich anmelden können. Ist kein Versand eingerichtet, bestätigt ein Administrator unter **Benutzer** manuell. Bestehende Konten gelten bei der Migration als bestätigt. Benachrichtigungen (Buchungen, Freigaben) lassen sich im Konto abschalten. Ein Passwort-Zurücksetzen ist bewusst noch nicht enthalten.
+
 ## Zentrale Zahlungsabwicklung
 
 Sämtliche Zahlungen laufen ausschliesslich über den Plattformbetreiber: Der Werbetreibende überweist den Buchungsbetrag an das unter *Einstellungen* hinterlegte Konto (mit Zahlungsreferenz), der Administrator bestätigt den Eingang, nach Laufzeitende erfasst der Administrator die Auszahlung an den Webseitenbetreiber (abzüglich Provision). Direkte Zahlungen zwischen Werbetreibenden und Betreibern sind in der Oberfläche und in den Nutzungsbedingungen ausgeschlossen. Konten mit beiden Rollen werden pro Buchung nach ihrer Beziehung berechtigt (als Betreiber annehmen/ablehnen, als Werbetreibender zahlen/stornieren), nie nach der Rolle allein.

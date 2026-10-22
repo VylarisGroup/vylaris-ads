@@ -29,6 +29,9 @@
 | `payments`, `payouts`, `ledger`, `bookings` | Abrechnungsdaten, Belegnummern | Aufbewahrungsfrist (Handels-/Steuerrecht), danach ohne Personenbezug |
 | `audit_log` | Aktion, Zeitpunkt, Benutzer-ID, **IP-Adresse** | IP nach `privacy.log_ip_days` (30 Tage); Benutzerbezug beim Löschen gelöst bzw. Details bei Anonymisierung entfernt |
 | `login_attempts` | **IP-Adresse**, E-Mail | nach 24 Stunden |
+| `email_tokens` | Bestätigungs-Token (nur Hash), Ziel-E-Mail-Adresse | 7 Tage nach Ablauf; mit dem Konto |
+| `mail_queue` | Empfängeradresse, Betreff; Text nur bis zur Zustellung | zugestellt: 30 Tage; fehlgeschlagen: 14 Tage; mit dem Konto |
+| `settings` (`mail_*`) | SMTP-Zugangsdaten (Passwort verschlüsselt) | durch den Administrator |
 | `storage/sessions/` | Sitzungsdaten (Benutzer-ID, CSRF-Token) | automatisch (Inaktivität + Garbage Collection) |
 | `storage/logs/php-error.log` | technische Fehler (ohne gezielte Personendaten) | durch den Betreiber rotieren/löschen |
 | Server-Logs, Datenbank-Backups | beim Hosting-Anbieter bzw. Betreiber | Rotation durch Hoster/Betreiber, siehe Checkliste |
@@ -43,6 +46,8 @@
 | 4 | Sicherheit/Protokoll | Nutzer, Besucher der Login-Seite | IP, E-Mail, Aktionen | Missbrauchsabwehr, Nachvollziehbarkeit | Art. 6 (1) f; Art. 32 | Administratoren | IP 30 Tage; Login-Versuche 24 h |
 | 5 | Bannerauslieferung | Besucher von Betreiberseiten | technisch: IP/User-Agent nur flüchtig im Request; gespeichert werden nur anonyme Tageszähler | Leistungsnachweis | Art. 6 (1) b, f | – | Zähler: Dauer der Buchungsdaten |
 | 6 | Hosting | alle | IP, Zeitpunkt, URL, Browserkennung (Server-Logs) | Betrieb | Art. 6 (1) f | Hoster (AV, Art. 28) | nach Vorgabe des Hosters |
+
+E-Mail-Versand: Mails (Bestätigungslinks, Benachrichtigungen) gehen über den im Admin-UI eingerichteten SMTP-Anbieter, der damit Auftragsverarbeiter ist (AV-Vertrag, Datenschutzerklärung ergänzen). Benachrichtigungen können Nutzer im Konto abschalten; Bestätigungsmails sind Teil der Vertragsabwicklung.
 
 Ergänzen: Name und Kontaktdaten des Verantwortlichen, ggf. Datenschutzbeauftragter, Beschreibung der technischen und organisatorischen Massnahmen (Verweis auf README), Drittlandübermittlungen (keine durch die Anwendung selbst; die Lizenzprüfung überträgt nur Lizenzschlüssel, Geräte-ID, Plattform-/Hostname an den Lizenzserver, keine Benutzerdaten).
 

@@ -9,7 +9,7 @@ if (PHP_VERSION_ID < 80200) {
 }
 
 define('APP_ROOT', dirname(__DIR__));
-define('APP_VERSION', '1.7.0');
+define('APP_VERSION', '1.8.0');
 
 $configFile = APP_ROOT . '/config/config.php';
 if (!is_file($configFile)) {
@@ -44,6 +44,9 @@ require __DIR__ . '/lib/Installer.php';
 require __DIR__ . '/lib/Updater.php';
 require __DIR__ . '/lib/Changelog.php';
 require __DIR__ . '/lib/Nav.php';
+require __DIR__ . '/lib/Mailer.php';
+require __DIR__ . '/lib/Verification.php';
+require __DIR__ . '/lib/Notify.php';
 require __DIR__ . '/lib/Legal.php';
 require __DIR__ . '/lib/Privacy.php';
 
@@ -52,6 +55,8 @@ if ((int) setting('schema_version', '1') < Installer::SCHEMA_VERSION) {
     Installer::migrate(db());
     setting('__reset');
 }
+
+Notify::register(); // E-Mail-Benachrichtigungen (nur aktiv, wenn der Mailversand eingerichtet ist)
 
 $listeners = config('integrations.listeners_file');
 if ($listeners && is_file($listeners)) {

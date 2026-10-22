@@ -36,6 +36,12 @@ function auth_login(): void
         flash('error', 'Dieses Konto ist gesperrt. Bitte wenden Sie sich an den Administrator.');
         redirect('login');
     }
+    if (!$user['email_verified_at']) {
+        // Passwort stimmt, aber die Adresse ist noch nicht bestätigt: kein Zugang, Link erneut anfordern
+        remember_input();
+        flash('error', 'Bitte bestätigen Sie zuerst Ihre E-Mail-Adresse über den Link in der Bestätigungs-Mail.');
+        redirect('verify.resend');
+    }
     if (password_needs_rehash($user['password_hash'], PASSWORD_DEFAULT)) {
         $user['password_hash'] = password_hash($password, PASSWORD_DEFAULT);
         q('UPDATE users SET password_hash = ? WHERE id = ?', [$user['password_hash'], $user['id']]);
@@ -85,11 +91,70 @@ function auth_register(): void
         [$email, password_hash($password, PASSWORD_DEFAULT), $name, $company ?: null, $role, Legal::version()]);
     $id = (int) db()->lastInsertId();
     $user = one('SELECT * FROM users WHERE id = ?', [$id]);
-    login_user($user);
     audit('user.registered', 'user', $id, ['role' => $role]);
     Hooks::fire('user.registered', ['user_id' => $id, 'role' => $role]);
-    flash('success', 'Willkommen bei ' . setting('platform_name', 'VylarisAdvertise') . '! Ihr Konto wurde erstellt.');
-    redirect('dashboard');
+    // Neue Konten sind erst nach Bestätigung der E-Mail-Adresse nutzbar
+    if (Verification::sendVerify($user)) {
+        flash('success', 'Ihr Konto wurde erstellt. Wir haben einen Bestätigungslink an ' . $email . ' gesendet – bitte öffnen Sie ihn, danach können Sie sich anmelden.');
+    } else {
+        flash('info', 'Ihr Konto wurde erstellt. Der E-Mail-Versand ist auf dieser Installation noch nicht eingerichtet – ein Administrator muss Ihre Adresse bestätigen, bevor Sie sich anmelden können.');
+    }
+    redirect('login');
+}
+
+/** Bestätigungslink aus der E-Mail (Registrierung oder Adressänderung). */
+function auth_verify(): void
+{
+    $t = Verification::consume(input('token'));
+    if (!$t) {
+        flash('error', 'Der Bestätigungslink ist ungültig, abgelaufen oder wurde bereits verwendet. Sie können unten einen neuen anfordern.');
+        redirect(current_user() ? 'account' : 'verify.resend');
+    }
+    $user = one('SELECT * FROM users WHERE id = ?', [$t['user_id']]);
+    if (!$user || $user['status'] === 'deleted') {
+        flash('error', 'Das Konto existiert nicht mehr.');
+        redirect('login');
+    }
+    if ($t['purpose'] === 'email_change') {
+        if (val('SELECT id FROM users WHERE email = ? AND id <> ?', [$t['email'], $user['id']])) {
+            flash('error', 'Diese E-Mail-Adresse wird inzwischen von einem anderen Konto verwendet.');
+            redirect(current_user() ? 'account' : 'login');
+        }
+        q('UPDATE users SET email = ?, email_verified_at = NOW() WHERE id = ?', [$t['email'], $user['id']]);
+        audit('user.email_changed', 'user', (int) $user['id']);
+        flash('success', 'Ihre neue E-Mail-Adresse wurde bestätigt.');
+        redirect(current_user() ? 'account' : 'login');
+    }
+    Verification::markVerified((int) $user['id']);
+    audit('user.email_verified', 'user', (int) $user['id']);
+    flash('success', 'Ihre E-Mail-Adresse wurde bestätigt. Sie können sich jetzt anmelden.');
+    redirect(current_user() ? 'dashboard' : 'login');
+}
+
+/** Bestätigungslink erneut anfordern (antwortet immer gleich, um keine Konten preiszugeben). */
+function auth_verify_resend(): void
+{
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        view('auth/verify', ['title' => 'E-Mail bestätigen']);
+        return;
+    }
+    $email = mb_strtolower(input('email'));
+    $max = 10;
+    if ((int) val("SELECT COUNT(*) FROM login_attempts WHERE ip = ? AND email LIKE 'verify:%' AND attempted_at > NOW() - INTERVAL 15 MINUTE", [client_ip()]) >= $max) {
+        flash('error', 'Zu viele Anfragen. Bitte versuchen Sie es in einigen Minuten erneut.');
+        redirect('verify.resend');
+    }
+    q('INSERT INTO login_attempts (ip, email) VALUES (?, ?)', [client_ip(), 'verify:' . mb_substr($email, 0, 180)]);
+    if (!Mailer::configured()) {
+        flash('error', 'Der E-Mail-Versand ist auf dieser Installation nicht eingerichtet. Bitte wenden Sie sich an den Administrator.');
+        redirect('verify.resend');
+    }
+    $user = filter_var($email, FILTER_VALIDATE_EMAIL) ? one("SELECT * FROM users WHERE email = ? AND status = 'active' AND email_verified_at IS NULL", [$email]) : null;
+    if ($user && Verification::canSend((int) $user['id'])) {
+        Verification::sendVerify($user);
+    }
+    flash('success', 'Falls zu dieser Adresse ein unbestätigtes Konto existiert, wurde ein neuer Bestätigungslink gesendet.');
+    redirect('login');
 }
 
 function auth_logout(): void
@@ -145,8 +210,18 @@ function auth_account(): void
     }
     $payout = can_publish($user) ? input('payout_details') : (string) $user['payout_details'];
     if (mb_strlen($payout) > 500) throw new UserError('Die Auszahlungsdaten sind zu lang (max. 500 Zeichen).');
-    q('UPDATE users SET name = ?, company = ?, email = ?, payout_details = ? WHERE id = ?', [$name, $company ?: null, $email, $payout !== '' ? $payout : null, $user['id']]);
+    $notify = !empty($_POST['notify_email']) ? 1 : 0;
+    $emailChange = $email !== $user['email'];
+    if ($emailChange && !Mailer::configured()) throw new UserError('Die E-Mail-Adresse kann derzeit nicht geändert werden, da der E-Mail-Versand nicht eingerichtet ist.');
+    if ($emailChange && !Verification::canSend((int) $user['id'])) throw new UserError('Bitte warten Sie kurz, bevor Sie erneut einen Bestätigungslink anfordern.');
+    q('UPDATE users SET name = ?, company = ?, payout_details = ?, notify_email = ? WHERE id = ?', [$name, $company ?: null, $payout !== '' ? $payout : null, $notify, $user['id']]);
     audit('user.profile_updated', 'user', (int) $user['id']);
-    flash('success', 'Ihr Profil wurde gespeichert.');
+    if ($emailChange) {
+        // Die neue Adresse gilt erst nach Bestätigung; bis dahin bleibt die bisherige aktiv.
+        Verification::sendEmailChange($user, $email);
+        flash('success', 'Profil gespeichert. Zur Änderung der E-Mail-Adresse haben wir einen Link an ' . $email . ' gesendet – die Adresse ändert sich erst nach dem Bestätigen.');
+    } else {
+        flash('success', 'Ihr Profil wurde gespeichert.');
+    }
     redirect('account');
 }

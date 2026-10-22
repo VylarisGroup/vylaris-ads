@@ -6,6 +6,8 @@
     <div><label class="label" for="name">Name</label><input class="input" id="name" name="name" value="<?= e(old('name', $user['name'])) ?>" required maxlength="120"></div>
     <div><label class="label" for="company">Firma</label><input class="input" id="company" name="company" value="<?= e(old('company', (string) $user['company'])) ?>" maxlength="160"></div>
     <div><label class="label" for="email">E-Mail-Adresse</label><input class="input" type="email" id="email" name="email" value="<?= e(old('email', $user['email'])) ?>" required maxlength="190"></div>
+    <p class="-mt-2 text-xs text-slate-500"><?php if ($user['email_verified_at']): ?><i class="bx bx-check-circle text-emerald-600"></i> Bestätigt am <?= fdate($user['email_verified_at']) ?>. Eine neue Adresse gilt erst nach Bestätigung per Link.<?php else: ?><i class="bx bx-error text-amber-600"></i> Noch nicht bestätigt.<?php endif; ?></p>
+    <label class="flex items-start gap-2 text-sm text-slate-700"><input type="checkbox" name="notify_email" value="1" class="mt-1 accent-brand-600" <?= (int) ($user['notify_email'] ?? 1) === 1 ? 'checked' : '' ?>><span>E-Mail-Benachrichtigungen zu Buchungen und Freigaben erhalten <span class="block text-xs text-slate-500">Mails zur Adressbestätigung erhalten Sie immer.</span></span></label>
     <?php if (can_publish($user)): ?>
     <div><label class="label" for="payout_details">Auszahlungsdaten</label><textarea class="input" id="payout_details" name="payout_details" rows="3" maxlength="500" placeholder="Kontoinhaber, IBAN, Bank"><?= e(old('payout_details', (string) $user['payout_details'])) ?></textarea><p class="mt-1 text-xs text-slate-500">Nur für Administratoren sichtbar, wird für Auszahlungen verwendet.</p></div>
     <?php endif; ?>

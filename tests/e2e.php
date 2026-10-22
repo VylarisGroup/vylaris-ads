@@ -64,7 +64,17 @@ final class Client
     }
 
     public function get(string $page, array $q = []): self { return $this->req('GET', $page, $q); }
-    public function post(string $page, array $data, array $q = []): self { return $this->req('POST', $page, $q, $data); }
+    public function post(string $page, array $data, array $q = []): self
+    {
+        $this->req('POST', $page, $q, $data);
+        // Seit 1.8.0 melden sich neue Konten erst nach E-Mail-Bestätigung an: für die übrigen Tests bestätigen und anmelden.
+        // (Der Bestätigungsablauf selbst wird im Abschnitt „E-Mail-Versand und Bestätigung“ über req() geprüft.)
+        if ($page === 'register' && isset($data['email']) && ($id = val('SELECT id FROM users WHERE email = ? AND email_verified_at IS NULL', [$data['email']]))) {
+            Verification::markVerified((int) $id);
+            $this->get('login')->req('POST', 'login', [], ['email' => $data['email'], 'password' => $data['password']]);
+        }
+        return $this;
+    }
 
     public function csrf(): string
     {
@@ -95,7 +105,7 @@ $uniq = substr(bin2hex(random_bytes(3)), 0, 6);
 echo "\n== Registrierung & Login ==\n";
 $pub = new Client($base, 'pub');
 $pub->get('register')->post('register', ['name' => 'Petra Publisher', 'company' => 'Tech Blog GmbH', 'email' => "pub$uniq@example.com", 'role' => 'publisher', 'password' => 'PublisherPass1', 'password2' => 'PublisherPass1', 'terms' => '1']);
-check($pub->has('Willkommen') && $pub->has('Petra Publisher'), 'Webseitenbetreiber registriert und angemeldet');
+check($pub->has('Petra Publisher'), 'Webseitenbetreiber registriert und angemeldet');
 $adv = new Client($base, 'adv');
 $adv->get('register')->post('register', ['name' => 'Anton Advertiser', 'email' => "adv$uniq@example.com", 'role' => 'advertiser', 'password' => 'AdvertiserPass1', 'password2' => 'AdvertiserPass1', 'terms' => '1']);
 check($adv->has('Anton Advertiser'), 'Werbetreibender registriert');
@@ -908,7 +918,7 @@ $wp->get('register'); check(!$wp->has('data-wizard') && $wp->has('Schritt für S
 $wp->post('register', ['wizard' => '1', 'name' => 'W', 'email' => 'kaputt', 'role' => 'publisher', 'password' => 'x', 'password2' => 'y']);
 check(str_contains($wp->url, 'wizard=1') && $wp->has('data-wizard'), 'Registrierung: Fehler bringen den Benutzer in den Assistenten zurück');
 $wp->post('register', ['wizard' => '1', 'name' => 'Wiebke Wizard', 'email' => "wp$wu@example.com", 'role' => 'publisher', 'password' => 'WizardPass123', 'password2' => 'WizardPass123', 'terms' => '1']);
-check($wp->has('Willkommen'), 'Registrierung über den Assistenten funktioniert');
+check($wp->has('Wiebke Wizard'), 'Registrierung über den Assistenten funktioniert');
 $wa = new Client($base, 'wa');
 $wa->get('register')->post('register', ['name' => 'Walter Werber', 'email' => "wa$wu@example.com", 'role' => 'advertiser', 'password' => 'WerberPass1234', 'password2' => 'WerberPass1234', 'terms' => '1']);
 
@@ -1003,6 +1013,125 @@ foreach (['wizard/site', 'wizard/campaign', 'wizard/booking', 'wizard/setup'] as
     $src = (string) file_get_contents(APP_ROOT . "/app/views/$v.php");
     check(str_contains($src, 'csrf_field()') && str_contains($src, 'data-wizard') && !str_contains($src, 'onclick=') && !str_contains($src, '<script'), "Assistenten-Vorlage $v: CSRF, keine Inline-Skripte");
 }
+
+echo "\n== E-Mail-Versand (SMTP) und Bestätigung ==\n";
+// Benötigt: php tests/fake_smtp.php 2525 /tmp/vyad-smtp.jsonl (läuft im Hintergrund)
+$smtpFile = '/tmp/vyad-smtp.jsonl';
+$mails = function () use ($smtpFile): array { return array_map(fn ($l) => json_decode($l, true), array_filter(explode("\n", (string) @file_get_contents($smtpFile)))); };
+$waitMail = function (int $n) use ($mails): array { for ($i = 0; $i < 50 && count($mails()) < $n; $i++) usleep(100000); return $mails(); };
+@unlink($smtpFile); @unlink($smtpFile . '.reject');
+$mu = substr(bin2hex(random_bytes(3)), 0, 6);
+$reg = fn (Client $c, string $tag) => $c->get('register')->req('POST', 'register', [], ['name' => "Mail $tag", 'email' => "m$tag$mu@example.com", 'role' => 'advertiser', 'password' => 'MailTestPass123', 'password2' => 'MailTestPass123', 'terms' => '1']);
+$uid = fn (string $tag): int => (int) val('SELECT id FROM users WHERE email = ?', ["m$tag$mu@example.com"]);
+
+// a) Ohne eingerichteten Versand
+check(!Mailer::configured(), 'Ausgangslage: E-Mail-Versand nicht eingerichtet');
+$admin->get('dashboard'); check($admin->has('Jetzt SMTP einrichten'), 'Admin sieht Hinweis auf fehlende SMTP-Einrichtung');
+$ma = new Client($base, 'ma');
+$reg($ma, 'a');
+check(val('SELECT email_verified_at FROM users WHERE email = ?', ["ma$mu@example.com"]) === null && !$ma->has('Abmelden'), 'Registrierung ohne SMTP: Konto unbestätigt und nicht angemeldet');
+check($ma->has('Administrator'), 'Registrierung ohne SMTP: Nutzer wird auf die Bestätigung durch den Administrator hingewiesen');
+$ma->get('login')->req('POST', 'login', [], ['email' => "ma$mu@example.com", 'password' => 'MailTestPass123']);
+check(!$ma->has('Abmelden') && (int) val('SELECT COUNT(*) FROM mail_queue') === 0, 'Unbestätigtes Konto kann sich nicht anmelden; keine Mail in der Warteschlange');
+$admin->get('admin.users'); check($admin->has('E-Mail unbestätigt') && $admin->has('Manuell bestätigen'), 'Benutzerliste zeigt unbestätigte Konten mit manueller Bestätigung');
+$admin->post('admin.user', ['id' => $uid('a'), 'action' => 'verify']);
+check(val('SELECT email_verified_at FROM users WHERE id = ?', [$uid('a')]) !== null, 'Administrator kann die Adresse manuell bestätigen');
+$ma->get('login')->req('POST', 'login', [], ['email' => "ma$mu@example.com", 'password' => 'MailTestPass123']);
+check($ma->has('Abmelden') || $ma->has('Mail a'), 'Nach manueller Bestätigung ist die Anmeldung möglich');
+
+// b) Einrichtung im Admin-UI
+$anon->get('admin.mail'); check(!$anon->has('SMTP-Server'), 'E-Mail-Seite: ohne Anmeldung nicht erreichbar');
+$ma->get('admin.mail'); check($ma->code === 403, 'E-Mail-Seite: Nichtadministratoren erhalten 403');
+$admin->get('admin.mail'); check($admin->code === 200 && $admin->has('SMTP-Server') && $admin->clean(), 'E-Mail-Seite für Administratoren erreichbar');
+$cfg = ['action' => 'save', 'host' => '127.0.0.1', 'port' => '2525', 'secure' => 'none', 'user' => 'mailuser', 'pass' => 'MailPass42', 'from' => 'noreply@example.com', 'from_name' => 'Test Plattform', 'enabled' => '1'];
+$admin->post('admin.mail', array_merge($cfg, ['host' => 'bad host!']));
+check(!Mailer::configured() && $admin->has('Hostname'), 'Ungültiger SMTP-Server wird abgelehnt');
+$admin->post('admin.mail', array_merge($cfg, ['host' => 'smtp.example.com']));
+check(!Mailer::configured() && $admin->has('nicht unverschlüsselt'), 'Zugangsdaten ohne Verschlüsselung werden für Fremdserver abgelehnt');
+$admin->post('admin.mail', $cfg); setting('__reset');
+check(Mailer::configured() && setting('mail_pass') !== '' && !str_contains((string) val("SELECT GROUP_CONCAT(value) FROM settings WHERE name LIKE 'mail_%'"), 'MailPass42'), 'SMTP gespeichert; Passwort nur verschlüsselt in der Datenbank');
+$admin->get('admin.mail'); check(!$admin->has('MailPass42') && $admin->has('unverändert lassen'), 'Passwort wird in der Oberfläche nie angezeigt');
+$admin->post('admin.mail', array_merge($cfg, ['pass' => '', 'from_name' => 'Test Plattform 2'])); setting('__reset');
+check(Mailer::config()['from_name'] === 'Test Plattform 2' && Mailer::config()['has_pass'], 'Leeres Passwortfeld lässt das gespeicherte Passwort unverändert');
+$admin->post('admin.mail', ['action' => 'test', 'to' => 'empfaenger@example.com']);
+$m = $waitMail(1);
+check(count($m) === 1 && $m[0]['to'] === 'empfaenger@example.com' && str_contains($m[0]['subject'], 'Test-Mail') && $m[0]['from'] === 'noreply@example.com', 'Test-Mail wird über SMTP (inkl. Anmeldung) zugestellt');
+$admin->post('admin.mail', array_merge($cfg, ['pass' => 'falsch']));
+$admin->post('admin.mail', ['action' => 'test', 'to' => 'empfaenger@example.com']);
+check($admin->has('fehlgeschlagen') && count($mails()) === 1, 'Falsches SMTP-Passwort: Test-Mail meldet Fehler');
+$admin->post('admin.mail', $cfg);
+
+// c) Registrierung mit Bestätigung
+$mb = new Client($base, 'mb');
+$reg($mb, 'b');
+check(val('SELECT email_verified_at FROM users WHERE id = ?', [$uid('b')]) === null && !$mb->has('Abmelden'), 'Neue Registrierung: unbestätigt, nicht angemeldet');
+$m = $waitMail(2);
+$last = end($m) ?: [];
+check(($last['to'] ?? '') === "mb$mu@example.com" && preg_match('/token=([a-f0-9]{64})/', (string) ($last['body'] ?? ''), $tm) === 1, 'Bestätigungsmail mit Link wird zugestellt');
+$token = $tm[1] ?? '';
+check((string) val('SELECT body FROM mail_queue WHERE user_id = ? ORDER BY id DESC LIMIT 1', [$uid('b')]) === '' && (string) val('SELECT status FROM mail_queue WHERE user_id = ? ORDER BY id DESC LIMIT 1', [$uid('b')]) === 'sent', 'Nach dem Versand ist der Mailtext aus der Warteschlange entfernt');
+check($token !== '' && (int) val('SELECT COUNT(*) FROM email_tokens WHERE token_hash = ?', [$token]) === 0 && (int) val('SELECT COUNT(*) FROM email_tokens WHERE token_hash = ?', [hash('sha256', $token)]) === 1, 'Token wird nur als Hash gespeichert');
+$mb->get('login')->req('POST', 'login', [], ['email' => "mb$mu@example.com", 'password' => 'MailTestPass123']);
+check(!$mb->has('Abmelden') && $mb->has('bestätig'), 'Anmeldung vor der Bestätigung wird verweigert');
+$mb->get('verify', ['token' => str_repeat('a', 64)]);
+check(val('SELECT email_verified_at FROM users WHERE id = ?', [$uid('b')]) === null, 'Ungültiger Token bestätigt nichts');
+$mb->get('verify', ['token' => $token]);
+check(val('SELECT email_verified_at FROM users WHERE id = ?', [$uid('b')]) !== null, 'Gültiger Link bestätigt die Adresse');
+$mb->get('login')->req('POST', 'login', [], ['email' => "mb$mu@example.com", 'password' => 'MailTestPass123']);
+check($mb->has('Abmelden') || $mb->has('Mail b'), 'Nach der Bestätigung ist die Anmeldung möglich');
+$before = val('SELECT email_verified_at FROM users WHERE id = ?', [$uid('b')]);
+$mc = new Client($base, 'mc'); $mc->get('verify', ['token' => $token]);
+check(val('SELECT used_at FROM email_tokens WHERE token_hash = ?', [hash('sha256', $token)]) !== null && !$mc->has('Abmelden'), 'Token ist nur einmal verwendbar und meldet niemanden an');
+q('UPDATE email_tokens SET used_at = NULL, expires_at = NOW() - INTERVAL 1 MINUTE WHERE token_hash = ?', [hash('sha256', $token)]);
+$mc->get('verify', ['token' => $token]);
+check(val('SELECT used_at FROM email_tokens WHERE token_hash = ?', [hash('sha256', $token)]) === null, 'Abgelaufener Token wird nicht eingelöst');
+
+// d) Erneut senden, Rate-Limit, keine Konto-Enumeration
+$md = new Client($base, 'md');
+$reg($md, 'd'); $waitMail(3);
+$n = count($mails());
+$md->post('verify.resend', ['email' => "md$mu@example.com"]);
+check(count($mails()) === $n, 'Erneutes Senden innerhalb von 60 Sekunden wird gebremst');
+q('UPDATE email_tokens SET created_at = NOW() - INTERVAL 2 MINUTE WHERE user_id = ?', [$uid('d')]);
+$md->post('verify.resend', ['email' => "md$mu@example.com"]);
+$m = $waitMail($n + 1);
+check(count($m) === $n + 1, 'Bestätigungslink kann erneut angefordert werden');
+$r1 = (new Client($base, 'e1'))->post('verify.resend', ['email' => "md$mu@example.com"]); $r2 = (new Client($base, 'e2'))->post('verify.resend', ['email' => "gibtesnicht$mu@example.com"]);
+check(preg_replace('/\s+/', ' ', strip_tags($r1->body)) === preg_replace('/\s+/', ' ', strip_tags($r2->body)) || ($r1->has('bestätigung') === $r2->has('bestätigung')), 'Antwort verrät nicht, ob ein Konto existiert');
+
+// e) Zustellfehler: Wiederholung
+file_put_contents($smtpFile . '.reject', '1');
+$me2 = new Client($base, 'me2'); $reg($me2, 'f');
+usleep(800000);
+$qid = (int) val('SELECT id FROM mail_queue WHERE user_id = ? ORDER BY id DESC LIMIT 1', [$uid('f')]);
+check($qid > 0 && (int) val('SELECT attempts FROM mail_queue WHERE id = ?', [$qid]) >= 1 && (string) val('SELECT status FROM mail_queue WHERE id = ?', [$qid]) === 'pending' && str_contains((string) val('SELECT last_error FROM mail_queue WHERE id = ?', [$qid]), '550'), 'Zustellfehler: Mail bleibt in der Warteschlange mit Fehlermeldung und Wiederholung');
+@unlink($smtpFile . '.reject'); setting('__reset');
+q('UPDATE mail_queue SET next_try_at = NOW() WHERE id = ?', [$qid]);
+$r = Mailer::flush(5);
+check($r['sent'] >= 1 && (string) val('SELECT status FROM mail_queue WHERE id = ?', [$qid]) === 'sent', 'Wiederholung stellt die Mail zu, sobald der Server wieder annimmt');
+$admin->get('admin.mail'); check($admin->has('Warteschlange') && $admin->clean(), 'Warteschlange in der Administration sichtbar');
+
+// f) Konto: Benachrichtigungen und E-Mail-Änderung
+$mb->get('account'); check($mb->has('name="notify_email"') && $mb->has('Bestätigt am'), 'Konto: Bestätigungsstatus und Benachrichtigungs-Schalter');
+$mb->post('account', ['action' => 'profile', 'name' => 'Mail b', 'company' => '', 'email' => "mb$mu@example.com", 'payout_details' => '', 'current_password' => 'MailTestPass123']);
+check((int) val('SELECT notify_email FROM users WHERE id = ?', [$uid('b')]) === 0, 'Benachrichtigungen lassen sich im Konto abschalten');
+$n = count($mails());
+q('UPDATE email_tokens SET created_at = NOW() - INTERVAL 2 MINUTE WHERE user_id = ?', [$uid('b')]);
+$mb->post('account', ['action' => 'profile', 'name' => 'Mail b', 'company' => '', 'email' => "mb-neu$mu@example.com", 'payout_details' => '', 'current_password' => 'MailTestPass123', 'notify_email' => '1']);
+check((string) val('SELECT email FROM users WHERE id = ?', [$uid('b')]) === "mb$mu@example.com", 'E-Mail-Änderung: Adresse bleibt bis zur Bestätigung unverändert');
+$m = $waitMail($n + 1); $last = end($m) ?: [];
+check(($last['to'] ?? '') === "mb-neu$mu@example.com" && preg_match('/token=([a-f0-9]{64})/', (string) ($last['body'] ?? ''), $tm2) === 1, 'E-Mail-Änderung: Link geht an die neue Adresse');
+$mb->get('verify', ['token' => $tm2[1] ?? '']);
+check((string) val('SELECT email FROM users WHERE email = ?', ["mb-neu$mu@example.com"]) === "mb-neu$mu@example.com" && (int) val('SELECT COUNT(*) FROM users WHERE email = ?', ["mb$mu@example.com"]) === 0, 'E-Mail-Änderung wird nach Klick auf den Link wirksam');
+
+// g) Datenschutz
+$cnt = (int) val('SELECT COUNT(*) FROM mail_queue WHERE user_id = ?', [$uid('d')]);
+Privacy::deleteAccount($uid('d'));
+check($cnt > 0 && (int) val('SELECT COUNT(*) FROM mail_queue WHERE user_id = ?', [$uid('d') ?: 0]) === 0 && (int) val('SELECT COUNT(*) FROM mail_queue WHERE to_email = ?', ["md$mu@example.com"]) === 0, 'Kontolöschung entfernt Warteschlange und Tokens des Kontos');
+q("INSERT INTO mail_queue (to_email, subject, body, status, sent_at, created_at) VALUES ('alt@example.com', 'alt', '', 'sent', NOW() - INTERVAL 40 DAY, NOW() - INTERVAL 40 DAY)");
+Privacy::housekeeping(true);
+check((int) val("SELECT COUNT(*) FROM mail_queue WHERE to_email = 'alt@example.com'") === 0, 'Bereinigung löscht zugestellte Mails nach 30 Tagen');
+check(Notify::class !== '' && str_contains((string) file_get_contents(APP_ROOT . '/bin/cron.php'), 'Mailer::flush'), 'Cronjob stellt die Warteschlange zu');
 
 echo "\nErgebnis: $passed bestanden, $failed fehlgeschlagen\n";
 array_map('unlink', glob("$tmp/*") ?: []);

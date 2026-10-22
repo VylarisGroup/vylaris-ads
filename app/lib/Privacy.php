@@ -133,6 +133,8 @@ final class Privacy
             q("UPDATE ad_slots SET status = 'paused' WHERE site_id IN (SELECT id FROM (SELECT id FROM sites WHERE user_id = ?) x)", [$userId]);
             q("UPDATE sites SET status = 'paused' WHERE user_id = ?", [$userId]);
             q('DELETE FROM login_attempts WHERE email = ?', [$u['email']]);
+            q('DELETE FROM mail_queue WHERE user_id = ? OR to_email = ?', [$userId, $u['email']]);
+            q('DELETE FROM email_tokens WHERE user_id = ?', [$userId]);
 
             if (!self::hasAccountingRecords($userId)) {
                 q('UPDATE audit_log SET user_id = NULL, ip = \'\' WHERE user_id = ?', [$userId]);
@@ -203,6 +205,9 @@ final class Privacy
         $days = max(1, (int) config('privacy.log_ip_days', 30));
         q("UPDATE audit_log SET ip = '' WHERE ip <> '' AND ip <> 'cli' AND created_at < NOW() - INTERVAL $days DAY");
         q('DELETE FROM login_attempts WHERE attempted_at < NOW() - INTERVAL 1 DAY');
+        q("DELETE FROM mail_queue WHERE status = 'sent' AND sent_at < NOW() - INTERVAL 30 DAY");
+        q("DELETE FROM mail_queue WHERE status = 'failed' AND created_at < NOW() - INTERVAL 14 DAY");
+        q('DELETE FROM email_tokens WHERE expires_at < NOW() - INTERVAL 7 DAY');
         foreach (all("SELECT id FROM users WHERE status = 'deleted' AND anonymize_after IS NOT NULL AND anonymize_after < CURDATE()") as $row) {
             self::anonymize((int) $row['id']);
         }

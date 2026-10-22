@@ -67,6 +67,10 @@ $current = $_GET['p'] ?? 'home';
     <div class="mb-4 flex items-start gap-2 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900" role="alert"><i class="bx bx-error-circle text-lg"></i>
       <span>Keine gültige Lizenz – die Anwendung läuft im Lesemodus (<?= e(TrsLicence::describe(licence() instanceof TrsLicence ? licence()->evaluate()['code'] : '')) ?>). <a class="underline" href="<?= url('admin.licence') ?>">Lizenz verwalten</a>.</span></div>
   <?php endif; ?>
+  <?php if ($me && $me['role'] === 'admin' && !Mailer::configured() && $current !== 'admin.mail'): ?>
+    <div class="mb-4 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900" role="alert"><i class="bx bx-envelope text-lg"></i>
+      <span>Der E-Mail-Versand ist nicht eingerichtet – neue Nutzer müssen ihre Adresse bestätigen und können sich ohne Mails nicht selbst freischalten. <a class="underline" href="<?= url('admin.mail') ?>">Jetzt SMTP einrichten</a>.</span></div>
+  <?php endif; ?>
   <?php if ($me && $me['role'] === 'admin' && ($upd = Updater::available()) && $current !== 'admin.update'): ?>
     <div class="mb-4 flex items-start gap-2 rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900" role="status"><i class="bx bx-up-arrow-circle text-lg"></i>
       <span>Version <?= e($upd['version']) ?> ist verfügbar (installiert: <?= APP_VERSION ?>). <a class="underline" href="<?= url('admin.update') ?>">Details und Update</a>.</span></div>

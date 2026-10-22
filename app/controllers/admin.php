@@ -108,6 +108,17 @@ function admin_user(): void
             q('UPDATE users SET role = ? WHERE id = ?', [$role, $target['id']]);
             flash('success', 'Rolle geändert: ' . ROLE_LABELS[$role] . '.');
             break;
+        case 'verify':
+            Verification::markVerified((int) $target['id']);
+            flash('success', 'E-Mail-Adresse von ' . $target['name'] . ' als bestätigt markiert. Das Konto kann sich jetzt anmelden.');
+            break;
+        case 'resend':
+            if ($target['email_verified_at']) throw new UserError('Die Adresse ist bereits bestätigt.');
+            if (!Mailer::configured()) throw new UserError('Der E-Mail-Versand ist nicht eingerichtet.');
+            if (!Verification::canSend((int) $target['id'])) throw new UserError('Bitte kurz warten: Es wurde bereits vor Kurzem ein Link gesendet (max. ' . Verification::MAX_PER_DAY . ' pro Tag).');
+            Verification::sendVerify($target);
+            flash('success', 'Bestätigungslink an ' . $target['email'] . ' gesendet.');
+            break;
         case 'password':
             $pw = (string) ($_POST['password'] ?? '');
             if (strlen($pw) < 10 || strlen($pw) > 200) throw new UserError('Das neue Passwort muss mindestens 10 Zeichen lang sein.');
@@ -404,4 +415,51 @@ function admin_changelog(): void
     $seen = Changelog::seenVersion((int) $me['id']);
     Changelog::markSeen((int) $me['id']); // wer die Seite sieht, hat das Protokoll gelesen
     view('admin/changelog', ['title' => 'Änderungsprotokoll', 'entries' => Changelog::entries(), 'seen' => $seen]);
+}
+
+/** E-Mail-Versand (SMTP) einrichten, testen und die Warteschlange einsehen. */
+function admin_mail(): void
+{
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        switch (input('action')) {
+            case 'save':
+                Mailer::saveConfig([
+                    'host' => input('host'), 'port' => input('port'), 'secure' => input('secure'), 'user' => input('user'),
+                    'pass' => (string) ($_POST['pass'] ?? ''), 'from' => input('from'), 'from_name' => input('from_name'), 'enabled' => !empty($_POST['enabled']),
+                ]);
+                audit('mail.settings', 'settings', null, ['host' => Mailer::config()['host'], 'secure' => Mailer::config()['secure'], 'enabled' => Mailer::config()['enabled']]);
+                flash('success', 'E-Mail-Einstellungen gespeichert. Senden Sie jetzt eine Test-Mail, um die Zugangsdaten zu prüfen.');
+                break;
+            case 'test':
+                $to = mb_strtolower(input('to'));
+                if (!filter_var($to, FILTER_VALIDATE_EMAIL)) throw new UserError('Bitte eine gültige Empfängeradresse angeben.');
+                if (!Mailer::configured()) throw new UserError('Bitte zuerst die Einstellungen speichern und den Versand aktivieren.');
+                try {
+                    Mailer::send($to, '', 'Test-Mail – ' . setting('platform_name'), "Dies ist eine Test-Nachricht von " . setting('platform_name') . ".\n\nWenn Sie diese Mail lesen, ist der E-Mail-Versand korrekt eingerichtet.");
+                } catch (RuntimeException $e) {
+                    audit('mail.test_failed', 'settings', null, []);
+                    throw new UserError('Test-Mail fehlgeschlagen: ' . $e->getMessage());
+                }
+                audit('mail.test', 'settings', null, []);
+                flash('success', 'Test-Mail an ' . $to . ' gesendet.');
+                break;
+            case 'flush':
+                $r = Mailer::flush(20);
+                flash($r['failed'] ? 'error' : 'success', $r['sent'] . ' Nachricht(en) zugestellt' . ($r['failed'] ? ', Zustellung fehlgeschlagen – Details in der Liste.' : '.'));
+                break;
+            case 'retry':
+                q("UPDATE mail_queue SET status = 'pending', attempts = 0, next_try_at = NOW(), last_error = NULL WHERE status = 'failed' AND created_at > NOW() - INTERVAL 2 DAY");
+                flash('success', 'Fehlgeschlagene Nachrichten (der letzten 2 Tage) werden erneut versucht.');
+                break;
+            default:
+                throw new UserError('Unbekannte Aktion.');
+        }
+        redirect('admin.mail');
+    }
+    view('admin/mail', [
+        'title' => 'E-Mail',
+        'cfg' => Mailer::config(),
+        'stats' => Mailer::stats(),
+        'queue' => all('SELECT id, to_email, subject, status, attempts, last_error, created_at, sent_at FROM mail_queue ORDER BY id DESC LIMIT 20'),
+    ]);
 }
