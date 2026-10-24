@@ -32,6 +32,7 @@ $current = $_GET['p'] ?? 'home';
       <button class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-slate-600 hover:bg-slate-100"><i class="bx bx-log-out text-lg"></i> Abmelden</button>
     </form>
   </div>
+  <?= Brand::html() ?>
 </aside>
 <?php endif; ?>
 <div class="flex min-h-screen min-w-0 flex-1 flex-col">

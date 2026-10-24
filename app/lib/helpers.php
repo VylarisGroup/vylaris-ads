@@ -168,7 +168,9 @@ function view(string $template, array $data = [], string $layout = 'layout'): vo
     if ($layout === '') {
         require $__template;
     } else {
+        ob_start([Brand::class, 'enforce']); // sichert den Herkunftshinweis in der Seitenleiste
         require APP_ROOT . '/app/views/' . $layout . '.php';
+        ob_end_flush();
     }
     unset($_SESSION['old']);
 }

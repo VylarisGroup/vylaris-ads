@@ -1133,6 +1133,17 @@ Privacy::housekeeping(true);
 check((int) val("SELECT COUNT(*) FROM mail_queue WHERE to_email = 'alt@example.com'") === 0, 'Bereinigung löscht zugestellte Mails nach 30 Tagen');
 check(Notify::class !== '' && str_contains((string) file_get_contents(APP_ROOT . '/bin/cron.php'), 'Mailer::flush'), 'Cronjob stellt die Warteschlange zu');
 
+echo "\n== Herkunftshinweis (Seitenleiste) ==\n";
+$admin->get('dashboard');
+check(substr_count($admin->body, 'data-brand') === 1 && $admin->has('powered by <strong class="font-semibold text-brand-600">VylarisAdvertise</strong>') && $admin->has('href="https://vylaris.ch"') && $admin->has('rel="noopener"'), 'Seitenleiste zeigt „powered by VylarisAdvertise“ mit Link auf vylaris.ch');
+check(preg_match('#<aside.*data-brand.*</aside>#s', $admin->body) === 1, 'Hinweis steht innerhalb der Seitenleiste');
+$pub->get('dashboard'); check($pub->has('data-brand'), 'Hinweis auch in der Seitenleiste von Betreibern/Werbetreibenden');
+$anon->get('home'); check(!$anon->has('data-brand'), 'Ohne Seitenleiste (abgemeldet) kein Hinweis');
+$orig = file_get_contents(APP_ROOT . '/app/views/layout.php');
+$tampered = str_replace('<?= Brand::html() ?>', '<div data-brand>fremder Text</div>', $orig);
+check($tampered !== $orig && !str_contains(Brand::enforce('<aside>x<div data-brand>fremder Text</div></aside>'), 'fremder Text') && str_contains(Brand::enforce('<aside>x</aside>'), 'powered by'), 'Veränderte oder entfernte Hinweise werden beim Ausliefern wiederhergestellt');
+check(!preg_match('/brand|powered/i', (string) file_get_contents(APP_ROOT . '/app/views/admin/settings.php')), 'Keine Einstellung für den Hinweis in der Weboberfläche');
+
 echo "\nErgebnis: $passed bestanden, $failed fehlgeschlagen\n";
 array_map('unlink', glob("$tmp/*") ?: []);
 @rmdir($tmp);

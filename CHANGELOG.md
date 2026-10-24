@@ -4,6 +4,10 @@ Alle nennenswerten Änderungen an VylarisAdvertise. Neueste Version zuerst. Admi
 
 Format pro Version: `## [X.Y.Z] - JJJJ-MM-TT`, darunter Abschnitte (`### Neu`, `### Geändert`, `### Behoben`, `### Sicherheit`) mit Stichpunkten.
 
+## [1.8.1] - 2026-10-24
+### Neu
+- Am Fuss jeder Seitenleiste steht jetzt der Hinweis „powered by VylarisAdvertise“ mit Link auf vylaris.ch. Er ist fester Bestandteil des Programms und nicht konfigurierbar.
+
 ## [1.8.0] - 2026-10-22
 ### Aktion erforderlich
 - **Bitte richten Sie den E-Mail-Versand jetzt im Admin-UI ein:** Administration → System → **E-Mail**. Tragen Sie SMTP-Server, Port, Verschlüsselung, Zugangsdaten und Absender ein und senden Sie eine Test-Mail. Solange das fehlt, erhalten neue Nutzer keinen Bestätigungslink und müssen von Ihnen unter **Benutzer** manuell bestätigt werden.
