@@ -9,7 +9,7 @@ if (PHP_VERSION_ID < 80200) {
 }
 
 define('APP_ROOT', dirname(__DIR__));
-define('APP_VERSION', '1.9.0');
+define('APP_VERSION', '2.0.0');
 
 $configFile = APP_ROOT . '/config/config.php';
 if (!is_file($configFile)) {

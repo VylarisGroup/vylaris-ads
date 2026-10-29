@@ -4,7 +4,7 @@ Alle nennenswerten Änderungen an VylarisAdvertise. Neueste Version zuerst. Admi
 
 Format pro Version: `## [X.Y.Z] - JJJJ-MM-TT`, darunter Abschnitte (`### Neu`, `### Geändert`, `### Behoben`, `### Sicherheit`) mit Stichpunkten.
 
-## [1.9.0] - 2026-10-29
+## [2.0.0] - 2026-10-29
 ### Geändert
 - **Die Anwendung ist wieder ohne Lizenz nutzbar.** Das gesamte Lizenzsystem wurde entfernt: Es gibt keine Lizenzprüfung, keine Einschränkung von Funktionen, keinen Lesemodus und keine Lizenzseite mehr. Alle Funktionen stehen uneingeschränkt zur Verfügung.
 - Installer (Web und Kommandozeile) und Konfiguration kommen ohne Lizenzangaben aus.
