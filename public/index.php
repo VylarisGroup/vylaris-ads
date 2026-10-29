@@ -30,7 +30,7 @@ try {
     if (!$route) {
         abort(404, 'Die angeforderte Seite existiert nicht.');
     }
-    [$file, $handler, $methods, $access] = $route; // $route[4] = Lizenz-Scope
+    [$file, $handler, $methods, $access] = $route;
 
     $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
     if (!in_array($method, $methods, true)) {
@@ -56,16 +56,6 @@ try {
         if ($access !== 'auth' && !role_allows($user['role'], $access)) {
             abort(403, 'Für diesen Bereich fehlt Ihnen die Berechtigung.');
         }
-    }
-
-    // Lizenz: Heartbeat bei Bedarf, dann Scope der Route prüfen (ohne gültige Lizenz bleibt nur der Lesemodus)
-    licence()->refreshIfDue();
-    $scope = $route[4] ?? null;
-    if ($scope !== null && !licence()->allows($scope)) {
-        $adminView = $user && $user['role'] === 'admin';
-        abort(403, licence()->isValid()
-            ? 'Diese Funktion ist in Ihrer Lizenz nicht enthalten' . ($adminView ? ' (Scope: ' . $scope . ')' : '') . '.'
-            : 'Die Anwendung befindet sich wegen einer fehlenden oder ungültigen Lizenz im Lesemodus.' . ($adminView ? ' Details unter Administration → Lizenz.' : ''));
     }
 
     if ($user && $user['role'] === 'admin') {

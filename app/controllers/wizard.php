@@ -31,7 +31,6 @@ function wizard_site(): void
 
     // Erst alles prüfen, dann in einer Transaktion speichern (entweder beides oder nichts)
     $siteIn = $site ? null : site_input('site_');
-    if (!$site) site_check_limit();
     $slotIn = slot_input('slot_');
     $slotId = tx(function () use ($site, $siteIn, $slotIn) {
         $sid = $site ? (int) $site['id'] : site_create($siteIn);

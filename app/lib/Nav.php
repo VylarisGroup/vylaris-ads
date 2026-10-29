@@ -51,7 +51,6 @@ final class Nav
         ]];
         $nav[] = ['group', 'system', 'System', 'bx-server', [
             ['link', 'admin.mail', 'E-Mail', 'bx-envelope', []],
-            ['link', 'admin.licence', 'Lizenz', 'bx-key', []],
             ['link', 'admin.update', 'Updates', 'bx-up-arrow-circle', []],
             ['link', 'admin.changelog', 'Änderungsprotokoll', 'bx-gift', []],
         ]];

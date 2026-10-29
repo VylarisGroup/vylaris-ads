@@ -48,14 +48,6 @@ function site_input(string $p = ''): array
     return ['name' => $name, 'url' => $url, 'category' => $category, 'description' => $description, 'visitors' => $visitors];
 }
 
-function site_check_limit(): void
-{
-    if (!licence()->hasFeature('multi_site')
-        && (int) val('SELECT COUNT(*) FROM sites WHERE user_id = ?', [uid()]) >= licence()->freeSites()) {
-        throw new UserError('Ihre Lizenz erlaubt höchstens ' . licence()->freeSites() . ' Webseite(n) pro Betreiber (Scope multi_site).');
-    }
-}
-
 function site_create(array $in): int
 {
     q('INSERT INTO sites (user_id, name, url, category, description, monthly_visitors) VALUES (?, ?, ?, ?, ?, ?)',
@@ -74,7 +66,6 @@ function site_form(): void
         return;
     }
     $in = site_input();
-    if (!$site) site_check_limit();
     if ($site) {
         // Änderungen werden erneut geprüft; bestehende Buchungen bleiben unberührt.
         q("UPDATE sites SET name = ?, url = ?, category = ?, description = ?, monthly_visitors = ?, status = 'pending', admin_note = NULL WHERE id = ?",

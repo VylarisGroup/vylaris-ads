@@ -4,6 +4,13 @@ Alle nennenswerten Änderungen an VylarisAdvertise. Neueste Version zuerst. Admi
 
 Format pro Version: `## [X.Y.Z] - JJJJ-MM-TT`, darunter Abschnitte (`### Neu`, `### Geändert`, `### Behoben`, `### Sicherheit`) mit Stichpunkten.
 
+## [1.9.0] - 2026-10-29
+### Geändert
+- **Die Anwendung ist wieder ohne Lizenz nutzbar.** Das gesamte Lizenzsystem wurde entfernt: Es gibt keine Lizenzprüfung, keine Einschränkung von Funktionen, keinen Lesemodus und keine Lizenzseite mehr. Alle Funktionen stehen uneingeschränkt zur Verfügung.
+- Installer (Web und Kommandozeile) und Konfiguration kommen ohne Lizenzangaben aus.
+### Behoben
+- Beim ersten Aufruf nach dem Update werden übrig gebliebene Einstellungen aus früheren Versionen automatisch gelöscht. Es ist nichts zu tun.
+
 ## [1.8.1] - 2026-10-24
 ### Neu
 - Am Fuss jeder Seitenleiste steht jetzt der Hinweis „powered by VylarisAdvertise“ mit Link auf vylaris.ch. Er ist fester Bestandteil des Programms und nicht konfigurierbar.
@@ -37,14 +44,12 @@ Format pro Version: `## [X.Y.Z] - JJJJ-MM-TT`, darunter Abschnitte (`### Neu`, `
 ## [1.6.0] - 2026-10-16
 ### Neu
 - **Änderungsprotokoll:** Nach einem Update zeigt die Administration beim ersten Aufruf ein Fenster mit allen Neuerungen seit der zuletzt gesehenen Version. Jeder Administrator wird einzeln geführt.
-- Seite „Änderungsprotokoll“ mit der gesamten Versionshistorie (erreichbar über die Versionsnummer in der Fusszeile und über die Update-Seite). Sie steht auch im Lesemodus ohne Lizenz zur Verfügung.
+- Seite „Änderungsprotokoll“ mit der gesamten Versionshistorie (erreichbar über die Versionsnummer in der Fusszeile und über die Update-Seite).
 - Die Hinweise werden aus `CHANGELOG.md` gelesen, das mit jedem Update mitgeliefert wird.
 
 ## [1.5.0]
 ### Geändert
 - Die Update-Quelle (GitHub-Repository) ist fest vorgegeben und kann von Benutzern nicht mehr angepasst werden.
-- Der Lizenzserver ist fest vorgegeben und kann nicht mehr angepasst werden.
-- Für Lizenzabfragen wird automatisch der hinterlegte öffentliche Schlüssel des Herstellers verwendet.
 
 ## [1.4.1]
 ### Geändert
@@ -54,15 +59,6 @@ Format pro Version: `## [X.Y.Z] - JJJJ-MM-TT`, darunter Abschnitte (`### Neu`, `
 ### Neu
 - **Updates aus GitHub-Releases:** automatische Prüfung auf neue Versionen, Installation per Klick oder per `php bin/update.php`.
 - Sichere Installation mit Prüfung des Pakets, Dateisicherung, Wartungsmodus, automatischer Wiederherstellung bei Fehlern und Rollback.
-
-## [1.3.1]
-### Geändert
-- Öffentlicher Schlüssel für die Lizenzprüfung hinterlegt.
-
-## [1.3.0]
-### Neu
-- **Lizenzsystem** nach TRS-License-API mit signierten Antworten, Heartbeat und Offline-Lizenz.
-- Berechtigungs-Scopes steuern, welche Funktionen die Lizenz freischaltet. Ohne gültige Lizenz läuft die Anwendung im Lesemodus.
 
 ## [1.2.0]
 ### Neu

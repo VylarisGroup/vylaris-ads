@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS users (
   consent_version VARCHAR(20) NULL,
   deleted_at      DATETIME NULL,
   anonymize_after DATE NULL,
-  -- Für spätere Anbindung an das VylarisGroup-Ökosystem (SSO / Vylaris-Licence)
+  -- Für spätere Anbindung an das VylarisGroup-Ökosystem (SSO)
   external_source VARCHAR(40) NULL,
   external_id     VARCHAR(120) NULL,
   last_login_at   DATETIME NULL,

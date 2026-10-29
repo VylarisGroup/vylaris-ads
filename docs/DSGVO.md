@@ -49,7 +49,7 @@
 
 E-Mail-Versand: Mails (Bestätigungslinks, Benachrichtigungen) gehen über den im Admin-UI eingerichteten SMTP-Anbieter, der damit Auftragsverarbeiter ist (AV-Vertrag, Datenschutzerklärung ergänzen). Benachrichtigungen können Nutzer im Konto abschalten; Bestätigungsmails sind Teil der Vertragsabwicklung.
 
-Ergänzen: Name und Kontaktdaten des Verantwortlichen, ggf. Datenschutzbeauftragter, Beschreibung der technischen und organisatorischen Massnahmen (Verweis auf README), Drittlandübermittlungen (keine durch die Anwendung selbst; die Lizenzprüfung überträgt nur Lizenzschlüssel, Geräte-ID, Plattform-/Hostname an den Lizenzserver, keine Benutzerdaten).
+Ergänzen: Name und Kontaktdaten des Verantwortlichen, ggf. Datenschutzbeauftragter, Beschreibung der technischen und organisatorischen Massnahmen (Verweis auf README), Drittlandübermittlungen (keine durch die Anwendung selbst).
 
 ## 4. Löschkonzept
 

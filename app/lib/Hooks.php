@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /**
- * Minimaler Event-Bus als Integrationspunkt (z. B. VylarisGroup / Vylaris-Licence,
+ * Minimaler Event-Bus als Integrationspunkt (z. B. VylarisGroup-SSO,
  * Webhooks, E-Mail-Benachrichtigungen, spätere Zahlungsanbieter).
  *
  * Ereignisse: user.registered, booking.requested, booking.accepted, booking.declined,

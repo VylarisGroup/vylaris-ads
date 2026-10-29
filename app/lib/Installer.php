@@ -5,7 +5,7 @@ declare(strict_types=1);
 final class Installer
 {
     /** Aktuelle Schemaversion. Neue Versionen werden in migrate() ergänzt und laufen automatisch beim nächsten Aufruf. */
-    public const SCHEMA_VERSION = 4;
+    public const SCHEMA_VERSION = 5;
 
     public static function root(): string
     {
@@ -147,6 +147,11 @@ final class Installer
                 }
                 $v = 4;
             }
+            if ($v < 5) {
+                // 5: Lizenzsystem entfernt – übrig gebliebene Lizenz-Einstellungen löschen
+                $pdo->exec("DELETE FROM settings WHERE name LIKE 'licence\\_%'");
+                $v = 5;
+            }
             $pdo->prepare("INSERT INTO settings (name, value) VALUES ('schema_version', ?) ON DUPLICATE KEY UPDATE value = VALUES(value)")->execute([(string) $v]);
         } finally {
             $pdo->query("SELECT RELEASE_LOCK('vylaris_migrate')")->fetchColumn();
@@ -200,17 +205,6 @@ final class Installer
             throw new RuntimeException('config/config.php konnte nicht geschrieben werden.');
         }
         @chmod($file, 0640);
-    }
-
-    /** Speichert den Lizenzschlüssel (Prüfung erfolgt beim ersten Aufruf bzw. unter Administration → Lizenz). */
-    public static function saveLicenceKey(PDO $pdo, string $key): void
-    {
-        $key = trim($key);
-        if ($key === '') return;
-        if (!preg_match('/^[A-Za-z0-9][A-Za-z0-9-]{4,63}$/', $key)) {
-            throw new RuntimeException('Der Lizenzschlüssel hat ein ungültiges Format.');
-        }
-        $pdo->prepare('INSERT INTO settings (name, value) VALUES (?, ?) ON DUPLICATE KEY UPDATE value = VALUES(value)')->execute(['licence_key', $key]);
     }
 
     public static function lock(): void

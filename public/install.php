@@ -26,7 +26,7 @@ $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' :
 $guessUrl = $scheme . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? '/'), '/\\');
 $f = [
     'db_host' => 'localhost', 'db_port' => '3306', 'db_name' => '', 'db_user' => '', 'app_url' => $guessUrl,
-    'timezone' => 'Europe/Zurich', 'admin_name' => '', 'admin_email' => '', 'licence_key' => '',
+    'timezone' => 'Europe/Zurich', 'admin_name' => '', 'admin_email' => '',
 ];
 
 if (!$locked && $_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -46,7 +46,6 @@ if (!$locked && $_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!filter_var($f['app_url'], FILTER_VALIDATE_URL)) $errors[] = 'Bitte eine gültige Basis-URL angeben.';
         if (!in_array($f['timezone'], timezone_identifiers_list(), true)) $errors[] = 'Ungültige Zeitzone.';
         if ((string) ($_POST['admin_password'] ?? '') !== (string) ($_POST['admin_password2'] ?? '')) $errors[] = 'Die Administrator-Passwörter stimmen nicht überein.';
-        if ($f['licence_key'] !== '' && !preg_match('/^[A-Za-z0-9][A-Za-z0-9-]{4,63}$/', $f['licence_key'])) $errors[] = 'Der Lizenzschlüssel hat ein ungültiges Format.';
         if (!$errors) {
             try {
                 $pdo = Installer::connect($db);
@@ -58,7 +57,6 @@ if (!$locked && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (!$hasConfig) {
                     Installer::writeConfig($db, $f['app_url'], $f['timezone']);
                 }
-                Installer::saveLicenceKey($pdo, $f['licence_key']);
                 Installer::lock();
                 $done = true;
                 $_SESSION = [];
@@ -122,11 +120,6 @@ if (!$locked && $_SERVER['REQUEST_METHOD'] === 'POST') {
         <div><label class="label">E-Mail</label><input class="input" type="email" name="admin_email" value="<?= $h($f['admin_email']) ?>" required></div>
         <div><label class="label">Passwort (min. 10 Zeichen)</label><input class="input" type="password" name="admin_password" minlength="10" required></div>
         <div><label class="label">Passwort wiederholen</label><input class="input" type="password" name="admin_password2" minlength="10" required></div>
-      </div>
-      <h2 class="font-semibold">5. Lizenz</h2>
-      <p class="text-sm text-slate-600">VylarisAdvertise ist lizenzpflichtig. Ohne Lizenz läuft die Anwendung nur im Lesemodus; der Schlüssel kann später unter <em>Administration → Lizenz</em> eingetragen werden.</p>
-      <div class="grid gap-4">
-        <div><label class="label">Lizenzschlüssel</label><input class="input font-mono" name="licence_key" value="<?= $h($f['licence_key']) ?>" maxlength="64" autocomplete="off" placeholder="VA-XXXX-XXXX-XXXX"></div>
       </div>
       <button class="btn-primary" <?= $reqOk ? '' : 'disabled' ?>><i class="bx bx-rocket"></i> Installieren</button>
     </form>

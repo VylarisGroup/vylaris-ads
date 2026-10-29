@@ -64,10 +64,6 @@ $current = $_GET['p'] ?? 'home';
 </header>
 
 <main class="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6">
-  <?php if ($me && $me['role'] === 'admin' && !licence()->isValid() && $current !== 'admin.licence'): ?>
-    <div class="mb-4 flex items-start gap-2 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900" role="alert"><i class="bx bx-error-circle text-lg"></i>
-      <span>Keine gültige Lizenz – die Anwendung läuft im Lesemodus (<?= e(TrsLicence::describe(licence() instanceof TrsLicence ? licence()->evaluate()['code'] : '')) ?>). <a class="underline" href="<?= url('admin.licence') ?>">Lizenz verwalten</a>.</span></div>
-  <?php endif; ?>
   <?php if ($me && $me['role'] === 'admin' && !Mailer::configured() && $current !== 'admin.mail'): ?>
     <div class="mb-4 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900" role="alert"><i class="bx bx-envelope text-lg"></i>
       <span>Der E-Mail-Versand ist nicht eingerichtet – neue Nutzer müssen ihre Adresse bestätigen und können sich ohne Mails nicht selbst freischalten. <a class="underline" href="<?= url('admin.mail') ?>">Jetzt SMTP einrichten</a>.</span></div>

@@ -102,7 +102,6 @@ function admin_user(): void
             if (!isset(ROLE_LABELS[$role])) throw new UserError('Ungültige Rolle.');
             $linked = (int) val('SELECT (SELECT COUNT(*) FROM sites WHERE user_id = ?) + (SELECT COUNT(*) FROM campaigns WHERE user_id = ?)
                 + (SELECT COUNT(*) FROM bookings WHERE advertiser_id = ? OR publisher_id = ?)', array_fill(0, 4, $target['id']));
-            if ($role === 'both') require_scope('dual_role');
             $addsRole = $role === 'both' && in_array($target['role'], ['advertiser', 'publisher'], true); // Erweiterung zu „beides“ ist immer möglich
             if ($linked > 0 && !$addsRole) throw new UserError('Bei Konten mit Webseiten, Kampagnen oder Buchungen kann die Rolle nur zu „Werbetreibender & Webseitenbetreiber“ erweitert werden.');
             q('UPDATE users SET role = ? WHERE id = ?', [$role, $target['id']]);
@@ -206,7 +205,6 @@ function admin_finance(): void
             LEFT JOIN bookings b ON b.id = l.booking_id WHERE $where ORDER BY l.id DESC";
 
     if (input('format') === 'csv') {
-        require_scope('export.csv');
         audit('finance.export', 'ledger');
         header('Content-Type: text/csv; charset=utf-8');
         header('Content-Disposition: attachment; filename="journal-' . date('Y-m-d') . '.csv"');
@@ -325,51 +323,6 @@ function admin_audit(): void
     $result = paginate("SELECT a.*, u.name AS user_name, u.email AS user_email FROM audit_log a LEFT JOIN users u ON u.id = a.user_id
         WHERE $where ORDER BY a.id DESC", $params, 50);
     view('admin/audit', ['title' => 'Protokoll', 'result' => $result]);
-}
-
-function admin_licence(): void
-{
-    $lic = licence();
-    if (!$lic instanceof TrsLicence) {
-        view('admin/licence', ['title' => 'Lizenz', 'lic' => $lic, 'trs' => false]);
-        return;
-    }
-    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-        switch (input('action')) {
-            case 'save':
-                $key = input('licence_key');
-                if (!preg_match('/^[A-Za-z0-9][A-Za-z0-9-]{4,63}$/', $key)) throw new UserError('Bitte einen gültigen Lizenzschlüssel eingeben (z. B. VA-XXXX-XXXX-XXXX).');
-                if ($key !== $lic->key()) {
-                    set_setting('licence_key', $key);
-                    $lic->reset();
-                }
-                $code = $lic->refresh();
-                audit('licence.key_saved', 'licence', null, ['code' => $code]);
-                flash($lic->isValid() ? 'success' : 'error', $lic->isValid() ? 'Lizenz geprüft und aktiviert.' : 'Lizenz nicht gültig: ' . TrsLicence::describe($lic->evaluate()['code']) . '.');
-                break;
-            case 'check':
-                if ($lic->key() === '') throw new UserError('Bitte zuerst einen Lizenzschlüssel eintragen.');
-                $code = $lic->refresh();
-                audit('licence.checked', 'licence', null, ['code' => $code]);
-                flash($lic->isValid() ? 'success' : 'error', $lic->isValid() ? 'Lizenz ist gültig.' : 'Lizenz nicht gültig: ' . TrsLicence::describe($lic->evaluate()['code']) . '.');
-                break;
-            case 'deactivate':
-                $ok = $lic->deactivate();
-                audit('licence.deactivated', 'licence', null, ['server_reached' => $ok]);
-                flash($ok ? 'success' : 'info', $ok ? 'Installation abgemeldet, der Geräteplatz ist wieder frei.' : 'Lokal zurückgesetzt; der Lizenzserver war nicht erreichbar. Gerät ggf. im Lizenz-Panel zurücksetzen.');
-                break;
-            case 'remove':
-                $lic->deactivate();
-                set_setting('licence_key', '');
-                audit('licence.removed', 'licence');
-                flash('info', 'Lizenzschlüssel entfernt. Die Anwendung läuft im Lesemodus.');
-                break;
-            default:
-                throw new UserError('Unbekannte Aktion.');
-        }
-        redirect('admin.licence');
-    }
-    view('admin/licence', ['title' => 'Lizenz', 'lic' => $lic, 'trs' => true]);
 }
 
 function admin_update(): void

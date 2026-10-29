@@ -80,6 +80,6 @@ function dashboard_admin(): void
     $awaiting = all(BOOKING_SELECT . " WHERE b.status = 'accepted' ORDER BY b.payment_status = 'reported' DESC, b.start_date LIMIT 10");
     view('dashboard/admin', [
         'title' => 'Admin-Dashboard', 'summary' => Billing::platformSummary(), 'reviews' => $reviews, 'users' => $users,
-        'awaiting' => $awaiting, 'monthly' => Billing::monthly(6), 'licence' => licence(),
+        'awaiting' => $awaiting, 'monthly' => Billing::monthly(6)
     ]);
 }

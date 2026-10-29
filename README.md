@@ -126,46 +126,10 @@ location ~ \.php$ { return 404; }
 | `security.login_max_attempts` / `login_window_min` | Login-Drosselung (5 Fehlversuche je E-Mail bzw. 15 je IP in 15 Minuten) |
 | `privacy.retention_years` | Aufbewahrungsfrist für Abrechnungsdaten nach Ende des Geschäftsjahres (Standard 10) |
 | `privacy.log_ip_days` | Anzahl Tage, nach denen IP-Adressen im Protokoll gelöscht werden (Standard 30) |
-| `integrations.update.*` | Optional: `token` (nur bei privatem Release-Repository), `check_hours`, `webroot` (siehe „Updates aus GitHub“). Lizenzserver, Lizenz-Schlüssel und Update-Repository sind **nicht** konfigurierbar |
+| `integrations.update.*` | Optional: `token` (nur bei privatem Release-Repository), `check_hours`, `webroot` (siehe „Updates aus GitHub“). Das Update-Repository ist **nicht** konfigurierbar |
 | `integrations.listeners_file` | Optionale Event-Listener für das VylarisGroup-Ökosystem (siehe unten) |
 
 Geschäftsparameter (Provision, Währung, Bankdaten, …) stehen in der Datenbank und werden im Admin-Bereich gepflegt.
-
-## Lizenz und Berechtigungs-Scopes
-
-VylarisAdvertise ist lizenzpflichtig und prüft den Schlüssel gegen **TRS License** (`https://licence.vylaris.ch`, API v1; Klasse `TrsLicence` in `app/lib/Licence.php`).
-
-**Einrichtung**
-1. Auf dem Lizenzserver ein Produkt mit der Kennung `vylaris-advertise` und Tarife anlegen; die `features` des Tarifs sind die Scopes (siehe unten).
-2. **Lizenzserver (`https://licence.vylaris.ch`), Produktkennung und öffentlicher Ed25519-Schlüssel sind fest im Programm hinterlegt** (`TrsLicence`) und lassen sich weder in der Weboberfläche noch in `config/config.php` ändern; der Schlüssel wird nie vom Server geladen.
-3. Lizenzschlüssel im Installer (`--licence-key=…` bei `bin/install.php`) oder unter **Administration → Lizenz** eintragen. Das Gerät wird automatisch aktiviert; *Gerät abmelden* gibt den Platz wieder frei.
-
-**Ablauf:** Heartbeat alle ca. 15 Minuten (bei Seitenaufrufen und per `bin/cron.php`, Timeout 5 s, bei Fehlern Wiederholung nach 5 Minuten). Jede Antwort wird gegen den öffentlichen Schlüssel geprüft (Ed25519) und bei jeder Auswertung erneut verifiziert, der Zeitstempel muss innerhalb von 5 Minuten liegen. Zusätzlich wird eine signierte **Offline-Lizenz** gespeichert (an die Geräte-ID gebunden): Ist der Server nicht erreichbar, läuft die Anwendung damit bis `validUntil` weiter (laut Server max. 30 Tage). Eine definitive Ablehnung (gesperrt, abgelaufen, unbekannt, falsches Produkt, Gerätelimit) wirkt sofort. Die Geräte-ID wird aus `app.secret` abgeleitet – bei Umzug `config.php` mitnehmen oder das Gerät vorher abmelden.
-
-**Ohne gültige Lizenz: Lesemodus.** Erreichbar bleiben Marktplatz, Anmeldung, Konto inkl. Datenauskunft und -löschung, eigene Buchungen/Belege, Administration → Lizenz/Einstellungen sowie die rein lesenden Ansichten (Statistik, Audit-Log, CSV-Export). Alle verändernden Funktionen sind gesperrt. Die Auslieferung bereits gebuchter Banner (`serve`/`click`) läuft weiter.
-
-**Scopes** (= `features` im Tarif; `*` schaltet alles frei, `bookings.*` eine Gruppe):
-
-| Scope | Schaltet frei |
-|---|---|
-| `market.browse` | Marktplatz und Werbeplätze ansehen |
-| `sites.manage` | Webseiten und Werbeplätze verwalten (Betreiber) |
-| `campaigns.manage` | Kampagnen und Banner (Werbetreibende) |
-| `bookings.manage` | Buchungen anfragen, annehmen, ablehnen, stornieren, Zahlung melden |
-| `admin.review` | Freigaben von Webseiten, Werbeplätzen, Kampagnen |
-| `payments.manage` | Zahlungseingang bestätigen, erstatten |
-| `payouts.manage` | Auszahlungen an Betreiber |
-| `users.manage` | Benutzerverwaltung |
-| `export.csv` | CSV-Export des Finanzjournals |
-| `stats.view` | Einnahmen- und Finanzstatistiken |
-| `legal.edit` | Impressum/Datenschutzangaben bearbeiten |
-| `audit.view` | Audit-Log |
-| `multi_site` | mehr als eine Webseite pro Betreiber (sonst höchstens eine) |
-| `dual_role` | Konten mit beiden Rollen (Registrierung, Upgrade, Admin) |
-
-Die Zuordnung Route → Scope steht als fünftes Element in `app/routes.php` und wird zentral in `public/index.php` erzwungen; Scopes innerhalb von Aktionen prüft `require_scope()`. Neue Funktionen: Scope in `licence_scopes()` eintragen und der Route zuweisen.
-
-**Datenschutz:** Der Lizenzserver erhält Lizenzschlüssel, Geräte-ID (Hash), Produktkennung und einen Anzeigenamen (Plattformname und Hostname) sowie die IP-Adresse des Servers; keine Daten von Benutzern der Plattform.
 
 ## Updates aus GitHub
 
@@ -183,7 +147,7 @@ Die Anwendung kann sich aus **GitHub-Releases** selbst aktualisieren (öffentlic
 
 **Oberfläche und Assistenten:** Die Navigation ist eine Seitenleiste mit ausklappbaren Gruppen (Aufbau je Rolle in `app/lib/Nav.php`; auf dem Handy als Menü). Für das Anlegen gibt es zusätzlich Assistenten unter `wizard.site` (Webseite + Werbeplatz), `wizard.campaign`, `wizard.booking`, `wizard.setup` (Administratoren) sowie `register&wizard=1`. Sie sind reine Bedienhilfen: Die Felder werden mit derselben Logik geprüft und gespeichert wie in den klassischen Formularen (`site_input()`, `slot_input()`, `settings_apply()`, `legal_apply()`, bzw. direkt `campaign.form` und `booking.request`), die Formulare bleiben bestehen. Ohne JavaScript zeigt ein Assistent alle Schritte untereinander als normales Formular. Neue Assistenten: Formular mit `data-wizard`, Schritte als `<fieldset data-step="…">`, Felder für die Zusammenfassung mit `data-sum="Beschriftung"` (siehe `app/views/wizard/`).
 
-**Änderungsprotokoll:** Die Datei `CHANGELOG.md` (Format `## [X.Y.Z] - JJJJ-MM-TT`, Abschnitte `### Neu` / `### Geändert` / `### Behoben` / `### Sicherheit`, Stichpunkte mit `- `) wird mit jedem Update mitgeliefert. Nach einem Update sieht jeder Administrator beim nächsten Aufruf einmalig ein Fenster mit allen Einträgen seit der zuletzt gesehenen Version (gespeichert pro Administrator in `settings`, Schlüssel `changelog_seen_u<ID>`). Die gesamte Historie steht unter *Administration → Änderungsprotokoll* (Link über die Versionsnummer in der Fusszeile), auch im Lesemodus ohne Lizenz. Beim Veröffentlichen: neuen Abschnitt oben in `CHANGELOG.md` ergänzen und denselben Text als Release-Hinweise verwenden.
+**Änderungsprotokoll:** Die Datei `CHANGELOG.md` (Format `## [X.Y.Z] - JJJJ-MM-TT`, Abschnitte `### Neu` / `### Geändert` / `### Behoben` / `### Sicherheit`, Stichpunkte mit `- `) wird mit jedem Update mitgeliefert. Nach einem Update sieht jeder Administrator beim nächsten Aufruf einmalig ein Fenster mit allen Einträgen seit der zuletzt gesehenen Version (gespeichert pro Administrator in `settings`, Schlüssel `changelog_seen_u<ID>`). Die gesamte Historie steht unter *Administration → Änderungsprotokoll* (Link über die Versionsnummer in der Fusszeile). Beim Veröffentlichen: neuen Abschnitt oben in `CHANGELOG.md` ergänzen und denselben Text als Release-Hinweise verwenden.
 
 **Rollback:** unter *Updates → Sicherungen* oder `php bin/update.php rollback`. Notfall ohne funktionierende Anwendung: die Sicherungs-ZIP aus `storage/backups/` über das Projektverzeichnis entpacken. Die **Datenbank wird nicht gesichert** und Migrationen werden nicht zurückgenommen – vor jedem Update ein Datenbank-Backup erstellen.
 
@@ -226,7 +190,7 @@ Sämtliche Zahlungen laufen ausschliesslich über den Plattformbetreiber: Der We
 
 * **Backup:** Datenbank (`mysqldump`) und `storage/banners/` sichern.
 * **Logs:** `storage/logs/php-error.log`.
-* **Updates:** Dateien ersetzen, `config/config.php` und `storage/` behalten. Schemaänderungen spielt die Anwendung beim ersten Aufruf automatisch und idempotent ein (`Installer::migrate()`, Schemaversion in der Tabelle `settings`; aktuell 3 = DSGVO und Doppelrolle `both`; Lizenzzustand liegt in `settings`). Für ein Upgrade von 1.x: Dateien ersetzen und den Lizenzschlüssel unter *Administration → Lizenz* eintragen – bis dahin läuft die Anwendung im Lesemodus. Alte Einträge `integrations.licence*` und `licence_provider` in `config/config.php` werden ignoriert und können entfernt werden.
+* **Updates:** Dateien ersetzen, `config/config.php` und `storage/` behalten. Schemaänderungen spielt die Anwendung beim ersten Aufruf automatisch und idempotent ein (`Installer::migrate()`, Schemaversion in der Tabelle `settings`; aktuell 5).
 * **Neuinstallation:** `storage/installed.lock` löschen und `install.php` erneut bereitstellen (nur in leerer Datenbank).
 
 ## Einbindung auf der Webseite des Betreibers
@@ -240,7 +204,7 @@ public/            Webroot: index.php (Front-Controller), install.php, assets/
 app/bootstrap.php  Laden von Konfiguration und Bibliotheken (Web und CLI)
 app/routes.php     Route → Controller, Methoden, Zugriffsrolle
 app/controllers/   Eine Datei je Bereich (auth, market, publisher, advertiser, bookings, admin, media, dashboard, legal, privacy)
-app/lib/           helpers (DB, Sitzung, CSRF, Format), Booking (Geschäftslogik), Billing, Upload, Privacy (Export/Löschung/Fristen), Legal (Rechtstexte), Hooks, Licence, Installer (inkl. Migration)
+app/lib/           helpers (DB, Sitzung, CSRF, Format), Booking (Geschäftslogik), Billing, Upload, Privacy (Export/Löschung/Fristen), Legal (Rechtstexte), Hooks, Installer (inkl. Migration)
 app/views/         PHP-Templates (wizard/ = Assistenten)
 database/schema.sql
 docs/DSGVO.md      Datenschutz: Massnahmen, Löschkonzept, Verarbeitungsverzeichnis, Checkliste
@@ -256,16 +220,15 @@ tests/e2e.php      End-to-End-Test
 Der Test läuft über HTTP gegen eine **frisch installierte Test-Datenbank** (er legt Daten an und verändert sie direkt):
 
 ```bash
-# Tests lenken Lizenz- und Update-Prüfung nur per PHP-Ini auf die Simulatoren um (nicht per config.php):
+# Tests lenken die Update-Prüfung nur per PHP-Ini auf den Simulator um (nicht per config.php):
 O="-d auto_prepend_file=$PWD/tests/dev_overrides.php"
-php bin/install.php --admin-email=admin@example.com --admin-name=Admin --admin-password='AdminPass123!' --licence-key=VA-TEST-0001-AAAA
-php -S 127.0.0.1:8081 tests/fake_licence.php &     # Lizenzserver-Simulator (Steuerdatei: <tmp>/fakelic.json, Key mit features ["*"] vorab anlegen)
+php bin/install.php --admin-email=admin@example.com --admin-name=Admin --admin-password='AdminPass123!'
 php $O -S 127.0.0.1:8082 tests/fake_github.php &    # GitHub-Simulator
 php $O -S 127.0.0.1:8080 -t public &
 php $O tests/e2e.php http://127.0.0.1:8080 admin@example.com 'AdminPass123!'
 ```
 
-Geprüft werden u. a.: Registrierung und Rollenschutz, CSRF und Berechtigungen, Freigabe-Workflow, Upload-Angriffe (getarnter PHP-Code, Polyglott-Dateien, angehängter Code), serverseitige Preisberechnung trotz manipulierter Formularfelder, Doppelbuchungsschutz inklusive paralleler Annahme, manuelle Zahlung, Provision, Finanzjournal, Auszahlungsregeln, Erstattung, Sperren und Login-Drosselung sowie ein Smoke-Test aller Seiten auf PHP-Warnungen. Für den Datenschutz: Rechtstexte und Escaping eigener Texte, Zustimmungsnachweis, Export (Passwortpflicht, keine Fremddaten, kein Hash), vollständige Löschung samt Banner-Dateien, Blockierung bei laufender Buchung/Guthaben, Sperrung mit Aufbewahrungsfrist, Anonymisierung nach Fristablauf bei unveränderten Finanzdaten, Löschung durch Administratoren, IP-Bereinigung und Schema-Migration. Für Updates: feste Update-Quelle (nicht per Oberfläche änderbar), Release-Prüfung (Tag, Version, Syntax), Zip-Slip/Strukturangriffe, Austausch mit Wartungsmodus, Rollback byte-identisch. Für die Lizenz: Aktivierung, Scope-Durchsetzung (Route und Aktion, Wildcards), Sperre/Ablauf/falsches Produkt/Gerätelimit, Lesemodus, abgelehnte Serverantworten (Signatur, veralteter Zeitstempel, manipulierte Datenbank), Offline-Lizenz bei Serverausfall und deren Ablauf, Abmelden/Wiederaktivieren.
+Geprüft werden u. a.: Registrierung und Rollenschutz, CSRF und Berechtigungen, Freigabe-Workflow, Upload-Angriffe (getarnter PHP-Code, Polyglott-Dateien, angehängter Code), serverseitige Preisberechnung trotz manipulierter Formularfelder, Doppelbuchungsschutz inklusive paralleler Annahme, manuelle Zahlung, Provision, Finanzjournal, Auszahlungsregeln, Erstattung, Sperren und Login-Drosselung sowie ein Smoke-Test aller Seiten auf PHP-Warnungen. Für den Datenschutz: Rechtstexte und Escaping eigener Texte, Zustimmungsnachweis, Export (Passwortpflicht, keine Fremddaten, kein Hash), vollständige Löschung samt Banner-Dateien, Blockierung bei laufender Buchung/Guthaben, Sperrung mit Aufbewahrungsfrist, Anonymisierung nach Fristablauf bei unveränderten Finanzdaten, Löschung durch Administratoren, IP-Bereinigung und Schema-Migration. Für Updates: feste Update-Quelle (nicht per Oberfläche änderbar), Release-Prüfung (Tag, Version, Syntax), Zip-Slip/Strukturangriffe, Austausch mit Wartungsmodus, Rollback byte-identisch.
 
 ## Erweiterbarkeit
 
@@ -278,20 +241,19 @@ Der MVP ist bewusst auf Festpreise und manuelle Zahlung beschränkt; die folgend
 | **Zahlungsanbieter** | `payments.method` und `payments.provider_ref`; `Booking::confirmPayment()` ist der einzige Ort, der eine Buchung auf „bezahlt“ setzt – ein Webhook ruft ihn auf, statt dass der Admin bestätigt. Auszahlungen laufen analog über `Billing::recordPayout()` |
 | **Benachrichtigungen, Webhooks** | `Hooks::on('booking.paid', fn ($p) => …)` – Ereignisse: `user.registered`, `booking.requested/accepted/declined/cancelled/paid/refunded/completed`, `payout.recorded`, `entity.reviewed`, `user.deleted`; `'*'` abonniert alle. Fehler in Listenern blockieren den Kernablauf nie |
 
-### Integration in das VylarisGroup-Ökosystem / Vylaris-Licence
+### Integration in das VylarisGroup-Ökosystem
 
-Die Anwendung hat keine Abhängigkeit zu weiteren VylarisGroup-Diensten ausser der Lizenzprüfung. Vorbereitet sind:
+Die Anwendung hat keine Abhängigkeit zu weiteren VylarisGroup-Diensten. Vorbereitet sind:
 
-1. **Lizenzprüfung:** siehe Abschnitt „Lizenz und Berechtigungs-Scopes“ (fest verdrahtet, nicht konfigurierbar).
-2. **Benutzer-Verknüpfung / SSO:** `users.external_source` und `users.external_id` (eindeutig kombiniert) nehmen die ID eines Kontos im Ökosystem auf. Ein SSO-Login legt dort an bzw. sucht und ruft `login_user()` auf – die bestehende Anmeldung bleibt unverändert.
-3. **Ereignisse:** Über `Hooks` lassen sich Buchungen, Zahlungen und Registrierungen an andere VylarisGroup-Dienste melden.
+1. **Benutzer-Verknüpfung / SSO:** `users.external_source` und `users.external_id` (eindeutig kombiniert) nehmen die ID eines Kontos im Ökosystem auf. Ein SSO-Login legt dort an bzw. sucht und ruft `login_user()` auf – die bestehende Anmeldung bleibt unverändert.
+2. **Ereignisse:** Über `Hooks` lassen sich Buchungen, Zahlungen und Registrierungen an andere VylarisGroup-Dienste melden.
 
 Beispiel `integrations/listeners.php`:
 
 ```php
 <?php
 Hooks::on('booking.paid', function (array $p) {
-    // z. B. Ereignis an Vylaris-Licence oder ein anderes System melden
+    // z. B. Ereignis an ein anderes System melden
 });
 ```
 

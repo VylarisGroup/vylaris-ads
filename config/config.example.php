@@ -42,7 +42,6 @@ return [
     ],
     // Optionale Integrationen (VylarisGroup-Ökosystem). Ohne Eintrag läuft alles eigenständig.
     'integrations' => [
-        // Lizenzprüfung (TRS License): Server, Produkt und öffentlicher Schlüssel sind fest im Programm hinterlegt und nicht konfigurierbar.
         // Selbst-Update aus GitHub-Releases (Administration → Updates). Die Update-Quelle (Repository) ist fest im Programm hinterlegt
         // und nicht konfigurierbar.
         'update' => [

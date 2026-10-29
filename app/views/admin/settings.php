@@ -48,7 +48,6 @@
     <div class="flex justify-between"><dt>Version</dt><dd><?= APP_VERSION ?> · <a class="link" href="<?= url('admin.update') ?>">Updates</a></dd></div>
     <div class="flex justify-between"><dt>PHP</dt><dd><?= PHP_VERSION ?></dd></div>
     <div class="flex justify-between"><dt>Datenbank</dt><dd><?= e((string) val('SELECT VERSION()')) ?></dd></div>
-    <div class="flex justify-between gap-4"><dt>Lizenz</dt><dd class="text-right"><a class="link" href="<?= url('admin.licence') ?>"><?= e(licence()->status()) ?></a></dd></div>
     <div class="flex justify-between"><dt>Letzte Statuspflege</dt><dd><?= setting('housekeeping_at') ? date('d.m.Y H:i', (int) setting('housekeeping_at')) : '–' ?></dd></div>
   </dl>
 </div>

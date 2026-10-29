@@ -633,120 +633,6 @@ check(val('SELECT role FROM users WHERE id = ?', [$idOf('e1')]) === 'both', 'Rol
 $e1->post('account', ['action' => 'profile', 'name' => 'E1', 'company' => '', 'role' => 'admin']);
 check(val('SELECT role FROM users WHERE id = ?', [$idOf('e1')]) === 'both', 'Rolle per Profilformular nicht manipulierbar');
 
-echo "\n== Lizenz & Berechtigungs-Scopes ==\n";
-$LK = 'VA-TEST-0001-AAAA';
-$flFile = sys_get_temp_dir() . '/fakelic.json';
-$fl = function (?string $key, array $props, array $global = []) use ($flFile): void {
-    $s = json_decode((string) file_get_contents($flFile), true);
-    if ($key !== null) $s['keys'][$key] = array_merge($s['keys'][$key] ?? ['plan' => 'Pro', 'features' => ['*'], 'maxDevices' => 2, 'expiresAt' => null], $props);
-    foreach ($global as $k => $v) { if ($v === null) unset($s[$k]); else $s[$k] = $v; }
-    file_put_contents($flFile, json_encode($s));
-};
-$lcheck = function () use ($admin): void { $admin->get('admin.licence')->post('admin.licence', ['action' => 'check']); };
-$lstate = fn () => json_decode((string) val("SELECT value FROM settings WHERE name = 'licence_state'"), true) ?: [];
-$sOnly = new Client($base, 'lsite'); // reiner Betreiber (pub) für Zugriffstests
-$admin->get('admin.licence');
-check($admin->code === 200 && $admin->has('Lizenz gültig') && $admin->has('sites.manage') && $admin->has('dual_role'), 'Admin-Lizenzseite zeigt Status und Scopes');
-check(!empty($lstate()['offline']['payload']) && in_array('activate', json_decode((string) file_get_contents($flFile), true)['log'] ?? [], true), 'Gerät wurde automatisch aktiviert und Offline-Lizenz abgelegt');
-$adv->get('admin.licence'); check($adv->code === 403, 'Lizenzseite nur für Administratoren');
-$anon->get('admin.licence'); check(str_contains($anon->url, 'p=login'), 'Lizenzseite ohne Login → Anmeldung');
-$admin->get('admin.licence')->post('admin.licence', ['action' => 'save', 'licence_key' => 'x y;<']);
-check($admin->has('gültigen Lizenzschlüssel'), 'Ungültiges Schlüsselformat wird abgelehnt');
-
-// --- Scopes: Tarif nur mit market.browse + sites.manage + bookings.*
-$fl($LK, ['features' => ['market.browse', 'sites.manage', 'bookings.*']]); $lcheck();
-$pub->get('sites'); check($pub->code === 200, 'Scope sites.manage → Webseitenbereich erreichbar');
-$adv->get('campaigns'); check($adv->code === 403 && $adv->has('nicht enthalten'), 'Ohne Scope campaigns.manage → 403 mit Hinweis');
-$admin->get('admin.reviews'); check($admin->code === 403 && $admin->has('admin.review'), 'Ohne Scope admin.review → Admin-Freigaben gesperrt (Scope nur für Admin sichtbar)');
-$adv->get('home'); check($adv->code === 200, 'Scope market.browse → Marktplatz erreichbar');
-$pub->get('site.form')->post('site.form', ['name' => 'Zweite Seite', 'url' => 'https://zwei.example.com', 'category' => 'Technologie', 'description' => 'Eine zweite Webseite, mindestens zwanzig Zeichen lang.', 'monthly_visitors' => '1']);
-check($pub->has('Scope multi_site') && (int) val('SELECT COUNT(*) FROM sites WHERE user_id = (SELECT id FROM users WHERE email = ?)', ["pub$uniq@example.com"]) === 1, 'Ohne Scope multi_site nur eine Webseite pro Betreiber');
-$anon->get('register')->post('register', ['name' => 'Dual X', 'email' => "dx$uniq@example.com", 'role' => 'both', 'password' => 'DualXPassword1', 'password2' => 'DualXPassword1', 'terms' => '1']);
-check((int) val('SELECT COUNT(*) FROM users WHERE email = ?', ["dx$uniq@example.com"]) === 0, 'Ohne Scope dual_role keine Registrierung als „Beides“');
-$admin->get('admin.finance', ['format' => 'csv']); check($admin->code === 403, 'Finanzjournal (stats.view) ohne Scope gesperrt');
-$admin->get('admin.licence'); check($admin->has('bx-lock-alt'), 'Lizenzseite markiert gesperrte Scopes');
-
-// --- Wildcard * und Gruppen
-$fl($LK, ['features' => ['*']]); $lcheck();
-$adv->get('campaigns'); check($adv->code === 200, 'Wildcard * schaltet alle Scopes frei');
-
-// --- Gesperrte Lizenz → Lesemodus
-$fl($LK, ['status' => 'blocked']); $lcheck();
-$admin->get('admin.licence'); check($admin->has('Keine gültige Lizenz') && $admin->has('gesperrt'), 'Gesperrte Lizenz wird erkannt');
-$adv->get('home'); check($adv->code === 200, 'Lesemodus: Marktplatz bleibt sichtbar');
-$adv->get('campaigns'); check($adv->code === 403 && $adv->has('Lesemodus'), 'Lesemodus: Kampagnen gesperrt');
-$adv->get('slot', ['id' => $slotId])->post('booking.request', ['slot_id' => $slotId, 'campaign_id' => $campId, 'start_date' => $plus(60), 'end_date' => $plus(61)]);
-check($adv->code === 403 && (int) val('SELECT COUNT(*) FROM bookings WHERE start_date = ?', [$plus(60)]) === 0, 'Lesemodus: Buchungsanfrage wird abgelehnt');
-$pub->get('sites'); check($pub->code === 403, 'Lesemodus: Webseitenverwaltung gesperrt');
-$admin->get('admin.users'); check($admin->code === 403, 'Lesemodus: Benutzerverwaltung gesperrt');
-$admin->get('admin.payouts'); check($admin->code === 403, 'Lesemodus: Auszahlungen gesperrt');
-$admin->get('admin.finance'); check($admin->code === 200, 'Lesemodus: Finanzansicht (nur lesend) erreichbar');
-$admin->get('admin.audit'); check($admin->code === 200, 'Lesemodus: Audit-Log erreichbar');
-$admin->get('admin.settings'); check($admin->code === 200, 'Lesemodus: Einstellungen erreichbar');
-$admin->get('dashboard'); check($admin->code === 200 && $admin->has('Lizenz'), 'Lesemodus: Dashboard mit Lizenzwarnung');
-$adv->get('account'); check($adv->code === 200, 'Lesemodus: Konto/Datenauskunft erreichbar');
-$adv->get('bookings'); check($adv->code === 200, 'Lesemodus: eigene Buchungen einsehbar');
-
-// --- Entsperren, Wiedereinspielung und Signatur
-$fl($LK, ['status' => 'active'], ['skew' => 1000]); $lcheck();
-$admin->get('admin.licence'); check($admin->has('Keine gültige Lizenz') && $admin->has('veraltet'), 'Veraltete Serverantwort (Zeitstempel) wird verworfen');
-$fl($LK, [], ['skew' => null, 'badsig' => true]); $lcheck();
-$admin->get('admin.licence'); check($admin->has('Keine gültige Lizenz') && $admin->has('Signatur'), 'Gefälschte Signatur wird verworfen');
-$fl($LK, [], ['badsig' => null]); $lcheck();
-$adv->get('campaigns'); check($adv->code === 200, 'Nach Entsperrung wieder voll nutzbar');
-
-// --- Manipulation der gespeicherten Antwort in der Datenbank
-$fl(null, [], ['down' => true]);
-$s = $lstate(); $orig = $s;
-$s['online']['payload'] = str_replace('"valid":true', '"valid":true ', $s['online']['payload']); // Signatur passt nicht mehr
-$s['offline'] = null;
-q("UPDATE settings SET value = ? WHERE name = 'licence_state'", [json_encode($s)]);
-$adv->get('campaigns'); check($adv->code === 403, 'Manipulierte gespeicherte Lizenzantwort wird nicht akzeptiert');
-
-// --- Server nicht erreichbar: Offline-Lizenz trägt
-$fl(null, [], ['down' => null]); $lcheck();
-$fl(null, [], ['down' => true]);
-$s = $lstate(); $s['online']['fetched_at'] = time() - 7200; $s['next_try'] = time() + 1000; q("UPDATE settings SET value = ? WHERE name = 'licence_state'", [json_encode($s)]);
-$adv->get('campaigns'); check($adv->code === 200, 'Server offline, Antwort veraltet → signierte Offline-Lizenz hält die Anwendung am Laufen');
-$admin->get('admin.licence'); check($admin->has('Offline-Lizenz gültig'), 'Admin sieht Offline-Modus');
-// Offline-Lizenz abgelaufen
-$fl(null, [], ['down' => null, 'offline_ttl' => 2]);
-$s = $lstate(); unset($s['offline']); q("UPDATE settings SET value = ? WHERE name = 'licence_state'", [json_encode($s)]); $lcheck();
-check(!empty($lstate()['offline']), 'Offline-Lizenz neu geholt (kurze Laufzeit für den Test)');
-$fl(null, [], ['down' => true]);
-$s = $lstate(); $s['online']['fetched_at'] = time() - 7200; $s['next_try'] = time() + 1000; q("UPDATE settings SET value = ? WHERE name = 'licence_state'", [json_encode($s)]);
-sleep(3);
-$adv->get('campaigns'); check($adv->code === 403, 'Offline-Lizenz abgelaufen und Server weg → Lesemodus');
-
-// --- Sonstige Codes
-$fl(null, [], ['down' => null, 'offline_ttl' => null]);
-$fl('VA-OTHER-PRODUCT', ['product' => 'anderes-produkt']);
-$admin->get('admin.licence')->post('admin.licence', ['action' => 'save', 'licence_key' => 'VA-OTHER-PRODUCT']);
-check($admin->has('anderen Produkt'), 'Schlüssel eines anderen Produkts wird abgelehnt');
-$admin->get('admin.licence')->post('admin.licence', ['action' => 'save', 'licence_key' => 'VA-UNKNOWN-0000']);
-check($admin->has('unbekannt'), 'Unbekannter Schlüssel wird abgelehnt');
-$fl('VA-EXPIRED-0001', ['expiresAt' => gmdate('c', time() - 86400)]);
-$admin->get('admin.licence')->post('admin.licence', ['action' => 'save', 'licence_key' => 'VA-EXPIRED-0001']);
-check($admin->has('abgelaufen'), 'Abgelaufene Lizenz wird abgelehnt');
-$fl('VA-FULL-0000-0001', ['maxDevices' => 1, 'devices' => ['anderes-geraet']]);
-$admin->get('admin.licence')->post('admin.licence', ['action' => 'save', 'licence_key' => 'VA-FULL-0000-0001']);
-check($admin->has('Geräteplätze'), 'Gerätelimit erreicht wird gemeldet');
-$admin->get('admin.licence')->post('admin.licence', ['action' => 'remove']);
-check(val("SELECT value FROM settings WHERE name = 'licence_key'") === '', 'Schlüssel entfernt');
-$adv->get('campaigns'); check($adv->code === 403, 'Ohne Schlüssel → Lesemodus');
-
-// --- Ursprünglichen Zustand wiederherstellen
-$admin->get('admin.licence')->post('admin.licence', ['action' => 'save', 'licence_key' => $LK]);
-check($admin->has('Lizenz geprüft') , 'Gültigen Schlüssel erneut eintragen → aktiviert');
-$adv->get('campaigns'); check($adv->code === 200, 'Anwendung wieder voll nutzbar');
-$admin->get('admin.licence')->post('admin.licence', ['action' => 'deactivate']);
-check(!in_array(licence()->hwid(), json_decode((string) file_get_contents($flFile), true)['keys'][$LK]['devices'] ?? [], true), 'Gerät abmelden gibt den Geräteplatz frei');
-$adv->get('home'); $adv->get('home');
-check(!in_array(licence()->hwid(), json_decode((string) file_get_contents($flFile), true)['keys'][$LK]['devices'] ?? [], true), 'Abgemeldete Installation aktiviert sich nicht von selbst wieder');
-$admin->get('admin.licence')->post('admin.licence', ['action' => 'check']);
-check(in_array(licence()->hwid(), json_decode((string) file_get_contents($flFile), true)['keys'][$LK]['devices'] ?? [], true), 'Erneute Prüfung aktiviert das Gerät wieder');
-$adv->get('campaigns'); check($adv->code === 200, 'Nach Wiederaktivierung voll nutzbar');
-
 echo "\n== Updates aus GitHub-Releases ==\n";
 $ghFile = sys_get_temp_dir() . '/fakegh.json';
 $gh = function (array $s) use ($ghFile): void { file_put_contents($ghFile, json_encode($s)); };
@@ -849,27 +735,41 @@ check(!is_file(APP_ROOT . '/app/UPDATE_MARKER.txt') && is_file(APP_ROOT . '/docs
 $admin->post('admin.update', ['action' => 'rollback', 'file' => '../../etc/passwd']); check($admin->has('Unbekannte Sicherung'), 'Rollback akzeptiert nur vorhandene Sicherungen');
 @array_map('unlink', glob(APP_ROOT . '/storage/backups/vylaris-advertise-*.zip'));
 
-echo "\n== Feste Lizenz- und Update-Quelle ==\n";
+echo "\n== Feste Update-Quelle ==\n";
 $cfgFile = APP_ROOT . '/config/config.php';
 $cfgBackup = file_get_contents($cfgFile);
 $cfgArr = require $cfgFile;
-$cfgArr['integrations']['licence_provider'] = 'NullLicence';
-$cfgArr['integrations']['licence'] = ['endpoint' => 'https://evil.example', 'public_key' => 'x', 'product' => 'x', 'free_sites' => 99];
 $cfgArr['integrations']['update'] = array_merge($cfgArr['integrations']['update'] ?? [], ['repo' => 'evil/repo', 'api_base' => 'https://evil.example']);
 $evil = "<?php\nreturn " . var_export($cfgArr, true) . ";\n";
 file_put_contents($cfgFile, $evil);
-$probe = 'require "' . APP_ROOT . '/app/bootstrap.php"; echo json_encode([licence()->endpoint(), licence()->product(), md5(licence()->publicKey()), Updater::repo(), Updater::apiBase(), licence()->freeSites(), get_class(licence())]);';
+$probe = 'require "' . APP_ROOT . '/app/bootstrap.php"; echo json_encode([Updater::repo(), Updater::apiBase()]);';
 $out = json_decode((string) shell_exec('php -r ' . escapeshellarg($probe) . ' 2>&1'), true); // bewusst OHNE auto_prepend_file
 file_put_contents($cfgFile, $cfgBackup);
-$userKey = "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAhV7L176abx5a05XciRbOOeFj6wkCnNiDrwEXw7KceiU=\n-----END PUBLIC KEY-----\n";
-check(is_array($out) && $out[0] === 'https://licence.vylaris.ch' && $out[1] === 'vylaris-advertise', 'Lizenzserver und Produkt lassen sich über config.php nicht ändern');
-check(is_array($out) && $out[2] === md5($userKey), 'Es gilt automatisch der vorgegebene öffentliche Schlüssel (config.php wirkungslos)');
-check(is_array($out) && $out[3] === 'VylarisGroup/vylaris-ads' && $out[4] === 'https://api.github.com', 'Update-Quelle lässt sich über config.php nicht ändern');
-check(is_array($out) && $out[5] === 1 && $out[6] === 'TrsLicence', 'Kein alternativer Lizenzanbieter über config.php einhängbar');
-check(Updater::repo() === 'VylarisGroup/vylaris-ads' && !str_contains((string) file_get_contents(APP_ROOT . '/app/views/admin/licence.php'), 'name="endpoint"') && !str_contains((string) file_get_contents(APP_ROOT . '/app/views/admin/licence.php'), 'public_key'), 'Weboberfläche bietet keine Felder für Lizenzserver oder Schlüssel');
-$admin->get('admin.licence')->post('admin.licence', ['action' => 'save', 'licence_key' => 'VA-TEST-0001-AAAA', 'endpoint' => 'https://evil.example', 'public_key' => 'x', 'product' => 'x']);
-check(licence()->endpoint() === 'http://127.0.0.1:8081' && !str_contains((string) val("SELECT GROUP_CONCAT(name) FROM settings"), 'licence_endpoint'), 'Per POST mitgeschickte Lizenzserver-Angaben werden ignoriert');
-check(PHP_VERSION_ID > 0 && str_contains((string) file_get_contents(APP_ROOT . '/app/lib/Licence.php'), 'MCowBQYDK2VwAyEAhV7L176abx5a05XciRbOOeFj6wkCnNiDrwEXw7KceiU='), 'Öffentlicher Schlüssel ist im Programm hinterlegt');
+check(is_array($out) && $out[0] === 'VylarisGroup/vylaris-ads' && $out[1] === 'https://api.github.com', 'Update-Quelle lässt sich über config.php nicht ändern');
+
+echo "\n== Ohne Lizenzsystem ==\n";
+$all = ''; foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator(APP_ROOT . '/app', FilesystemIterator::SKIP_DOTS)) as $f) if ($f->isFile() && basename($f->getPathname()) !== 'Installer.php') $all .= (string) file_get_contents($f->getPathname());
+$all .= (string) file_get_contents(APP_ROOT . '/public/index.php') . (string) file_get_contents(APP_ROOT . '/public/install.php') . (string) file_get_contents(APP_ROOT . '/bin/install.php') . (string) file_get_contents(APP_ROOT . '/config/config.example.php');
+$all = preg_replace('/\bLICENSE\b/', '', $all); // Dateiname der Software-Lizenz (Updater)
+check(!preg_match('/licen[cs]|lizenz|require_scope|hasFeature/i', $all), 'Im Programmcode gibt es keinen Bezug zu Lizenzen mehr');
+$routes = require APP_ROOT . '/app/routes.php';
+check(!isset($routes['admin.licence']) && count(array_filter($routes, fn ($r) => isset($r[4]))) === 0, 'Keine Lizenzroute und keine Scopes in den Routen');
+$admin->get('admin.licence'); check($admin->code === 404, 'Frühere Lizenzseite existiert nicht mehr (404)');
+$admin->get('admin.settings');
+$page = (string) preg_replace('#<dialog.*?</dialog>#s', '', $admin->body); // Änderungsprotokoll-Fenster beschreibt die Entfernung
+check(!str_contains($page, 'Lizenz') && !str_contains($page, 'Lesemodus') && !str_contains($page, 'admin.licence'), 'Oberfläche zeigt keine Lizenzhinweise');
+check((int) val("SELECT COUNT(*) FROM settings WHERE name LIKE 'licence\\_%'") === 0, 'Keine Lizenz-Einstellungen in der Datenbank');
+check((int) val("SELECT value FROM settings WHERE name = 'schema_version'") === Installer::SCHEMA_VERSION && Installer::SCHEMA_VERSION >= 5, 'Schemaversion enthält die Bereinigung der Lizenz-Einstellungen');
+q("INSERT INTO settings (name, value) VALUES ('licence_key', 'ALT'), ('licence_state', '{}') ON DUPLICATE KEY UPDATE value = VALUES(value)");
+q("UPDATE settings SET value = '4' WHERE name = 'schema_version'");
+Installer::migrate(db());
+check((int) val("SELECT COUNT(*) FROM settings WHERE name LIKE 'licence\\_%'") === 0, 'Migration löscht übrig gebliebene Lizenz-Einstellungen aus älteren Versionen');
+$anon->get('home'); check($anon->code === 200 && $anon->clean(), 'Marktplatz ohne Lizenz erreichbar');
+// Funktionen, die früher an Lizenz-Scopes hingen, sind uneingeschränkt verfügbar
+$dx = new Client($base, 'dualnl'); $dxu = substr(bin2hex(random_bytes(3)), 0, 6);
+$dx->get('register')->post('register', ['name' => 'Dual NL', 'email' => "dnl$dxu@example.com", 'role' => 'both', 'password' => 'DualNlPassword1', 'password2' => 'DualNlPassword1', 'terms' => '1']);
+check((int) val("SELECT COUNT(*) FROM users WHERE email = ? AND role = 'both'", ["dnl$dxu@example.com"]) === 1, 'Registrierung als „Beides“ ohne Freischaltung möglich');
+$admin->get('admin.finance', ['format' => 'csv']); check($admin->code === 200, 'CSV-Export des Finanzjournals verfügbar');
 
 echo "\n== Änderungsprotokoll ==\n";
 $adminId = (int) val("SELECT id FROM users WHERE email = ?", [$adminEmail]);
@@ -881,7 +781,7 @@ check($parsed[0]['date'] === '2026-01-02' && $parsed[1]['date'] === '' && str_co
 $html = Changelog::html($parsed);
 check(!str_contains($html, '<script') && str_contains($html, '<strong>Fett</strong>') && str_contains($html, '<code>code</code>') && str_contains($html, '&lt;script&gt;'), 'Darstellung maskiert HTML, erlaubt nur fett und code');
 check(count(Changelog::entries()) >= 9 && Changelog::entries()[0]['version'] === $ver, 'CHANGELOG.md enthält die installierte Version als neuesten Eintrag');
-check(str_contains(Changelog::markdownFor($ver), '### Neu'), 'Release-Hinweise lassen sich aus CHANGELOG.md erzeugen');
+check(str_contains(Changelog::markdownFor($ver), '### '), 'Release-Hinweise lassen sich aus CHANGELOG.md erzeugen');
 
 q("DELETE FROM settings WHERE name = ?", [$ck]);
 $admin->get('dashboard'); check($admin->code === 200 && $admin->has('data-changelog') && $admin->has('Neu in Version ' . $ver), 'Erster Aufruf ohne Stand: Änderungsfenster mit der aktuellen Version');
@@ -906,7 +806,7 @@ q("DELETE FROM settings WHERE name = ?", [$ck]);
 $other = (int) val("SELECT COUNT(*) FROM settings WHERE name LIKE 'changelog_seen_u%' AND name <> ?", [$ck]);
 check($other === 0, 'Gesehen-Stand wird nur für den eigenen Administrator geführt');
 $routes = require APP_ROOT . '/app/routes.php';
-check(isset($routes['admin.changelog']) && !isset($routes['admin.changelog'][4]) && $routes['admin.changelog'][3] === 'admin', 'Änderungsprotokoll ist lizenzunabhängig (auch im Lesemodus) und nur für Administratoren');
+check(isset($routes['admin.changelog']) && $routes['admin.changelog'][3] === 'admin', 'Änderungsprotokoll nur für Administratoren');
 
 
 echo "\n== Seitenleiste & Assistenten ==\n";
@@ -958,8 +858,7 @@ $newSlot = one('SELECT * FROM ad_slots WHERE site_id = ?', [$newSite['id']]);
 check($newSite['status'] === 'pending' && (int) $newSite['monthly_visitors'] === 1200 && $newSlot['status'] === 'pending' && (int) $newSlot['price_per_day'] === 1250 && $newSlot['format'] === '300x250', 'Gespeicherte Werte und Status „in Prüfung“ stimmen');
 check((int) val("SELECT COUNT(*) FROM audit_log WHERE action = 'wizard.completed'") >= 1 && (int) val("SELECT COUNT(*) FROM audit_log WHERE action = 'site.created' AND entity_id = ?", [$newSite['id']]) === 1, 'Assistent wird im Protokoll festgehalten');
 $wp->post('wizard.site', array_merge($siteFields, ['site_name' => 'Zweiter Blog']) + $slotFields);
-$limited = !licence()->hasFeature('multi_site');
-check($limited ? ($wp->has('höchstens') && (int) val("SELECT COUNT(*) FROM sites WHERE name = 'Zweiter Blog'") === 0) : ((int) val("SELECT COUNT(*) FROM sites WHERE name = 'Zweiter Blog'") === 1), 'Assistent beachtet das Webseiten-Limit der Lizenz (Scope multi_site)');
+check((int) val("SELECT COUNT(*) FROM sites WHERE name = 'Zweiter Blog'") === 1, 'Assistent: mehrere Webseiten pro Betreiber sind möglich');
 $wp->get('wizard.site', ['site_id' => $newSite['id']]);
 check($wp->code === 200 && substr_count($wp->body, 'data-step=') === 3 && $wp->has('name="site_id"') && !$wp->has('name="site_name"'), 'Werbeplatz-Assistent für bestehende Webseite: ohne Webseiten-Schritt');
 $wp->post('wizard.site', ['site_id' => $newSite['id']] + array_merge($slotFields, ['slot_name' => 'Footer', 'slot_format' => 'custom', 'slot_width' => '640', 'slot_height' => '120']));

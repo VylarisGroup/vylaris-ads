@@ -14,5 +14,4 @@ Booking::housekeeping(true);
 Privacy::housekeeping(true);
 Updater::checkIfDue();
 Mailer::flush(50);
-if (licence() instanceof TrsLicence) { licence()->refreshIfDue(); }
 echo date('c') . " Statuspflege und Datenschutz-Bereinigung ausgeführt.\n";

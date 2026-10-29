@@ -9,7 +9,7 @@ if (PHP_VERSION_ID < 80200) {
 }
 
 define('APP_ROOT', dirname(__DIR__));
-define('APP_VERSION', '1.8.1');
+define('APP_VERSION', '1.9.0');
 
 $configFile = APP_ROOT . '/config/config.php';
 if (!is_file($configFile)) {
@@ -36,7 +36,6 @@ if (config('app.debug')) {
 
 require __DIR__ . '/lib/helpers.php';
 require __DIR__ . '/lib/Hooks.php';
-require __DIR__ . '/lib/Licence.php';
 require __DIR__ . '/lib/Upload.php';
 require __DIR__ . '/lib/Booking.php';
 require __DIR__ . '/lib/Billing.php';

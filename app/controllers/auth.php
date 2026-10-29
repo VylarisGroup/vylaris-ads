@@ -78,7 +78,6 @@ function auth_register(): void
     if (!in_array($role, ['advertiser', 'publisher', 'both'], true)) $errors[] = 'Bitte eine Kontoart wählen.';
     if (strlen($password) < 10 || strlen($password) > 200) $errors[] = 'Das Passwort muss mindestens 10 Zeichen lang sein.';
     if ($password !== ($_POST['password2'] ?? null)) $errors[] = 'Die Passwörter stimmen nicht überein.';
-    if ($role === 'both' && !licence()->allows('dual_role')) $errors[] = 'Konten mit beiden Rollen sind in dieser Installation nicht freigeschaltet.';
     if (empty($_POST['terms'])) $errors[] = 'Bitte akzeptieren Sie die Nutzungsbedingungen.';
     if (!$errors && val('SELECT id FROM users WHERE email = ?', [$email])) $errors[] = 'Diese E-Mail-Adresse ist bereits registriert.';
 
@@ -179,7 +178,6 @@ function auth_account(): void
         $add = input('role');
         $ok = ($user['role'] === 'advertiser' && $add === 'publisher') || ($user['role'] === 'publisher' && $add === 'advertiser');
         if (!$ok) throw new UserError('Diese Rolle kann nicht hinzugefügt werden.');
-        require_scope('dual_role');
         q("UPDATE users SET role = 'both' WHERE id = ? AND role = ?", [$user['id'], $user['role']]);
         audit('user.role_added', 'user', (int) $user['id'], ['role' => $add]);
         flash('success', $add === 'publisher' ? 'Ihr Konto kann jetzt auch Werbeplätze anbieten.' : 'Ihr Konto kann jetzt auch Werbeplätze buchen.');

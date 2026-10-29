@@ -1,7 +1,4 @@
 <?php partial('page_header', ['heading' => 'Administration', 'sub' => 'Plattform-Übersicht']); ?>
-<?php if (!$licence->isValid()): ?>
-  <div class="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800"><i class="bx bx-error"></i> Lizenzprüfung fehlgeschlagen: <?= e($licence->status()) ?></div>
-<?php endif; ?>
 <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
   <?php partial('kpi', ['label' => 'Umsatz (brutto)', 'value' => money($summary['gross']), 'icon' => 'bx-trending-up', 'hint' => 'bezahlte + abgeschlossene Buchungen']); ?>
   <?php partial('kpi', ['label' => 'Plattformprovision', 'value' => money($summary['commission']), 'icon' => 'bx-pie-chart-alt-2', 'hint' => 'aktueller Satz ' . percent_bp(setting('commission_bp'))]); ?>
@@ -33,7 +30,6 @@
         <div class="flex justify-between"><dt>Gesperrt</dt><dd><?= (int) $users['blocked'] ?></dd></div>
         <div class="flex justify-between"><dt>Laufende Buchungen</dt><dd><?= (int) $summary['live'] ?></dd></div>
       </dl>
-      <p class="mt-3 border-t border-slate-100 pt-3 text-xs text-slate-500"><i class="bx bx-shield-quarter"></i> <?= e($licence->status()) ?></p>
       <a class="link mt-2 inline-block text-xs" href="<?= url('admin.audit') ?>">Protokoll ansehen</a>
     </div>
   </div>
